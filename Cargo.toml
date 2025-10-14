@@ -1,6 +1,6 @@
-[package]
-name = "messaging"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = ["api","core", "max_api_client"]
+resolver = "3"
 
-[dependencies]
+[workspace.dependencies]
+uuid = { version = "1.18.1", features = ["v4", "v7", "serde"] }
