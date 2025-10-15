@@ -3,6 +3,8 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
 use thiserror::Error;
+use messaging::application::usecases::SendMessageError;
+use messaging::application::services::MessageServiceError;
 
 #[derive(Debug, Error)]
 pub enum ApiError {
@@ -16,6 +18,28 @@ pub enum ApiError {
     Service(String),
     #[error("Internal server error: {0}")]
     Internal(String),
+}
+
+impl From<SendMessageError> for ApiError {
+    fn from(err: SendMessageError) -> Self {
+        match err {
+            SendMessageError::InvalidContent(msg) => ApiError::Validation(msg),
+            SendMessageError::InvalidDestination(msg) => ApiError::Validation(msg),
+            SendMessageError::DomainError(err) => ApiError::Validation(err.to_string()),
+            SendMessageError::RepositoryError(err) => ApiError::Database(err.to_string()),
+            SendMessageError::QueueError(err) => ApiError::Service(err.to_string()),
+        }
+    }
+}
+
+impl From<MessageServiceError> for ApiError {
+    fn from(err: MessageServiceError) -> Self {
+        match err {
+            MessageServiceError::MessageNotFound(_) => ApiError::MessageNotFound,
+            MessageServiceError::ProcessingError(err) => ApiError::Internal(err.to_string()),
+            MessageServiceError::RepositoryError(err) => ApiError::Database(err.to_string()),
+        }
+    }
 }
 
 impl IntoResponse for ApiError {

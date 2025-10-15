@@ -1,29 +1,11 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 pub struct SendMessageRequest {
-    pub payload: PayloadDto,
+    pub content: String,
+    pub format: Option<String>,
     pub destinations: Vec<DestinationDto>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "type")]
-pub enum PayloadDto {
-    Plain { content: String },
-    Formatted {
-        content: String,
-        format: TextFormatDto
-    },
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum TextFormatDto {
-    Plain,
-    Markdown,
-    Html,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,7 +22,7 @@ pub enum MessengerTypeDto {
     Max,
 }
 
-impl From<MessengerTypeDto> for crate::domain::models::MessengerType {
+impl From<MessengerTypeDto> for messaging::domain::MessengerType {
     fn from(dto: MessengerTypeDto) -> Self {
         match dto {
             MessengerTypeDto::Telegram => Self::Telegram,
@@ -51,17 +33,10 @@ impl From<MessengerTypeDto> for crate::domain::models::MessengerType {
 }
 
 #[derive(Debug, Serialize)]
-pub struct SendMessageResponse {
-    pub message_id: Uuid,
+pub struct MessageResponse {
+    pub id: Uuid,
     pub status: String,
-    pub queued_destinations: Vec<QueuedDestinationDto>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct QueuedDestinationDto {
-    pub destination_id: Uuid,
-    pub messenger_type: MessengerTypeDto,
-    pub chat_id: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Serialize)]
@@ -94,14 +69,15 @@ pub enum DeliveryStatusDto {
     RetryScheduled,
 }
 
-impl From<crate::domain::models::DeliveryStatus> for DeliveryStatusDto {
-    fn from(status: crate::domain::models::DeliveryStatus) -> Self {
+impl From<messaging::domain::DeliveryStatus> for DeliveryStatusDto {
+    fn from(status: messaging::domain::DeliveryStatus) -> Self {
         match status {
-            crate::domain::models::DeliveryStatus::Pending => Self::Pending,
-            crate::domain::models::DeliveryStatus::Queued => Self::Queued,
-            crate::domain::models::DeliveryStatus::Sent => Self::Sent,
-            crate::domain::models::DeliveryStatus::Failed => Self::Failed,
-            crate::domain::models::DeliveryStatus::RetryScheduled => Self::RetryScheduled,
+            messaging::domain::DeliveryStatus::Pending => Self::Pending,
+            messaging::domain::DeliveryStatus::Queued => Self::Queued,
+            messaging::domain::DeliveryStatus::Sent => Self::Sent,
+            messaging::domain::DeliveryStatus::Failed => Self::Failed,
+            messaging::domain::DeliveryStatus::RetryScheduled => Self::RetryScheduled,
+            _ => Self::Pending,
         }
     }
 }

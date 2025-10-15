@@ -194,6 +194,10 @@ impl MessageRepository for PostgresMessageRepository {
         }))
     }
 
+    async fn find_by_destination_id(&self, destination_id: Uuid) -> Result<Option<Message>, RepositoryError> {
+        todo!()
+    }
+
     async fn update_destination(
         &self,
         destination: &MessageDestination,

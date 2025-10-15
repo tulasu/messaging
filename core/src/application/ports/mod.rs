@@ -54,6 +54,7 @@ pub enum QueueError {
 pub trait MessageRepository: Send + Sync {
     async fn save(&self, message: &Message) -> Result<(), RepositoryError>;
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Message>, RepositoryError>;
+    async fn find_by_destination_id(&self, destination_id: Uuid) -> Result<Option<Message>, RepositoryError>;
     async fn update_destination(
         &self,
         destination: &MessageDestination,

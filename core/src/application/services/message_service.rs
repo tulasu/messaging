@@ -1,93 +1,130 @@
-use crate::application::ports::{EventDispatcher, MessageQueue, MessageRepository};
-use crate::domain::{
-    ChatId, DeliveryStatus, DomainEvent, MessageDestination, MessageProcessing,
-    MessageRetryScheduled, MessageSent, MessengerType,
-};
-use chrono::Utc;
+use std::sync::Arc;
+use anyhow::Error;
 use thiserror::Error;
 use uuid::Uuid;
+use crate::application::ports::{MessageRepository, MessageQueue, RepositoryError};
+use crate::domain::{Message, DeliveryStatus, MessengerType, MessageContent};
+use crate::infrastructure::messengers::factory::MessengerAdapterFactory;
 
 #[derive(Debug, Error)]
-pub enum ProcessingError {
+pub enum MessageServiceError {
     #[error("Message not found: {0}")]
     MessageNotFound(Uuid),
-    #[error("Destination not found: {0}")]
-    DestinationNotFound(Uuid),
+    #[error("Processing error: {0}")]
+    ProcessingError(#[from] Error),
     #[error("Repository error: {0}")]
-    RepositoryError(String),
-    #[error("Queue error: {0}")]
-    QueueError(String),
-    #[error("Event dispatch error: {0}")]
-    EventError(String),
-    #[error("Invalid status transition")]
-    InvalidStatusTransition,
+    RepositoryError(#[from] RepositoryError),
 }
 
 pub struct MessageService {
-    repository: Box<dyn MessageRepository>,
-    event_dispatcher: Box<dyn EventDispatcher>,
-    queue: Box<dyn MessageQueue>,
+    repository: Arc<dyn MessageRepository>,
+    queue: Arc<dyn MessageQueue>,
+    messenger_factory: Arc<MessengerAdapterFactory>,
 }
 
 impl MessageService {
     pub fn new(
-        repository: Box<dyn MessageRepository>,
-        event_dispatcher: Box<dyn EventDispatcher>,
-        queue: Box<dyn MessageQueue>,
+        repository: Arc<dyn MessageRepository>,
+        queue: Arc<dyn MessageQueue>,
+        messenger_factory: Arc<MessengerAdapterFactory>,
     ) -> Self {
         Self {
             repository,
-            event_dispatcher,
             queue,
+            messenger_factory,
         }
     }
 
-    async fn update_destination_status(
-        &self,
-        destination_id: Uuid,
-        status: DeliveryStatus,
-        error_message: Option<String>,
-    ) -> Result<(), ProcessingError> {
-        // In a real implementation, we'd fetch the destination first
-        // For now, we'll create a placeholder
-        let destination = MessageDestination {
-            id: destination_id,
-            message_id: Uuid::new_v4(),              // Placeholder
-            messenger_type: MessengerType::Telegram, // Placeholder
-            chat_id: ChatId::new("placeholder".to_string()).unwrap(),
-            status: status.clone(),
-            retry_count: 0,
-            last_attempt: Some(Utc::now()),
-            sent_at: if status == DeliveryStatus::Sent {
-                Some(Utc::now())
-            } else {
-                None
-            },
-            error_message,
-        };
-
+    pub async fn get_message_details(&self, message_id: Uuid) -> Result<Message, MessageServiceError> {
         self.repository
-            .update_destination(&destination)
-            .await
-            .map_err(|e| ProcessingError::RepositoryError(e.to_string()))?;
+            .find_by_id(message_id)
+            .await?
+            .ok_or(MessageServiceError::MessageNotFound(message_id))
+    }
+
+    pub async fn retry_failed_message(&self, destination_id: Uuid) -> Result<(), MessageServiceError> {
+        tracing::info!("Manual retry requested for destination: {}", destination_id);
+
+        let message = self.repository.find_by_destination_id(destination_id).await?
+            .ok_or(MessageServiceError::MessageNotFound(destination_id))?;
+
+        let destination = message.destinations
+            .iter()
+            .find(|d| d.id == destination_id)
+            .ok_or(MessageServiceError::MessageNotFound(destination_id))?;
+
+        tracing::info!("Processing manual retry for destination {} (retry count: {})", destination_id, destination.retry_count);
+
+        let mut updated_destination = destination.clone();
+        updated_destination.status = DeliveryStatus::Pending;
+        updated_destination.retry_count += 1;
+        updated_destination.last_attempt = Some(chrono::Utc::now());
+        updated_destination.error_message = None;
+
+        self.repository.update_destination(&updated_destination).await?;
+
+        let delay = chrono::Duration::minutes(2_i64.pow(updated_destination.retry_count));
+        self.queue.requeue_with_delay(
+            message.id,
+            destination_id,
+            destination.messenger_type,
+            delay,
+        ).await
+        .map_err(|e| MessageServiceError::ProcessingError(anyhow::anyhow!(e)))?;
+
+        tracing::info!("Re-queued destination {} with delay of {} minutes", destination_id, delay.num_minutes());
 
         Ok(())
     }
-}
 
-impl MessageService {
-    pub async fn process_pending_message(
-        &self,
-        messenger_type: MessengerType,
-    ) -> Result<(), ProcessingError> {
-        while let Some((message_id, destination_id)) = self
-            .queue
-            .dequeue(messenger_type.clone())
-            .await
-            .map_err(|e| ProcessingError::QueueError(e.to_string()))?
-        {
-            self.process_single_message(message_id, destination_id, messenger_type.clone())
-                .await?;
+    pub async fn auto_retry_failed_message(&self, destination_id: Uuid) -> Result<(), MessageServiceError> {
+        tracing::info!("Auto retry attempt for destination: {}", destination_id);
+
+        let message = self.repository.find_by_destination_id(destination_id).await?
+            .ok_or(MessageServiceError::MessageNotFound(destination_id))?;
+
+        let destination = message.destinations
+            .iter()
+            .find(|d| d.id == destination_id)
+            .ok_or(MessageServiceError::MessageNotFound(destination_id))?;
+
+        // Auto retry - respect retry limit
+        if destination.retry_count >= 3 {
+            tracing::warn!("Destination {} has exhausted retry limit, no more auto retries", destination_id);
+            return Ok(());
+        }
+
+        tracing::info!("Processing auto retry for destination {} (retry count: {})", destination_id, destination.retry_count);
+
+        let mut updated_destination = destination.clone();
+        updated_destination.status = DeliveryStatus::Pending;
+        updated_destination.retry_count += 1;
+        updated_destination.last_attempt = Some(chrono::Utc::now());
+        updated_destination.error_message = None;
+
+        self.repository.update_destination(&updated_destination).await?;
+
+        // Re-queue with exponential backoff delay
+        let delay = chrono::Duration::minutes(2_i64.pow(updated_destination.retry_count));
+        self.queue.requeue_with_delay(
+            message.id,
+            destination_id,
+            destination.messenger_type,
+            delay,
+        ).await
+        .map_err(|e| MessageServiceError::ProcessingError(anyhow::anyhow!(e)))?;
+
+        tracing::info!("Auto-requeued destination {} with delay of {} minutes", destination_id, delay.num_minutes());
+
+        Ok(())
+    }
+
+    pub async fn process_pending_message(&self, messenger_type: MessengerType) -> Result<(), MessageServiceError> {
+        while let Some((message_id, destination_id)) = self.queue.dequeue(messenger_type).await
+            .map_err(|e| MessageServiceError::ProcessingError(anyhow::anyhow!(e)))? {
+            if let Err(e) = self.process_single_message(message_id, destination_id, messenger_type).await {
+                tracing::error!("Failed to process message {}: {}", message_id, e);
+            }
         }
         Ok(())
     }
@@ -97,87 +134,61 @@ impl MessageService {
         message_id: Uuid,
         destination_id: Uuid,
         messenger_type: MessengerType,
-    ) -> Result<(), ProcessingError> {
-        // Update status to Processing
-        self.update_destination_status(destination_id, DeliveryStatus::Processing, None)
-            .await?;
+    ) -> Result<(), MessageServiceError> {
+        let message = self.repository.find_by_id(message_id).await?
+            .ok_or(MessageServiceError::MessageNotFound(message_id))?;
 
-        // Dispatch MessageProcessing event
-        let event = DomainEvent::MessageProcessing(MessageProcessing {
-            message_id,
-            destination_id,
-            messenger_type: messenger_type.clone(),
-            occurred_at: Utc::now(),
-        });
+        let destination = message.destinations
+            .iter()
+            .find(|d| d.id == destination_id)
+            .ok_or(MessageServiceError::MessageNotFound(destination_id))?;
 
-        self.event_dispatcher
-            .dispatch(event)
-            .await
-            .map_err(|e| ProcessingError::EventError(e.to_string()))?;
+        // Get messenger adapter
+        let adapter = self.messenger_factory.create_adapter(&messenger_type)
+            .map_err(|e| MessageServiceError::ProcessingError(anyhow::anyhow!(e)))?;
 
-        // In a real implementation, this would send the actual message
-        // For now, we'll simulate success
-        self.handle_message_success(message_id, destination_id, messenger_type)
-            .await?;
+        // Send message
+        let message_content = MessageContent {
+            text: message.payload.content().to_string(),
+            format: Some(message.payload.format()),
+        };
+        let result = adapter.send_message(&destination.chat_id, &message_content).await;
 
-        Ok(())
-    }
+        match result {
+            Ok(_) => {
+                // Update destination status to sent
+                let mut updated_destination = destination.clone();
+                updated_destination.status = DeliveryStatus::Sent;
+                updated_destination.sent_at = Some(chrono::Utc::now());
+                self.repository.update_destination(&updated_destination).await
+                    .map_err(|e| MessageServiceError::ProcessingError(anyhow::anyhow!(e)))?;
+            }
+            Err(e) => {
+                // Update destination status to failed
+                let mut updated_destination = destination.clone();
+                updated_destination.status = DeliveryStatus::Failed;
+                updated_destination.last_attempt = Some(chrono::Utc::now());
+                updated_destination.error_message = Some(e.to_string());
+                self.repository.update_destination(&updated_destination).await
+                    .map_err(|e| MessageServiceError::ProcessingError(anyhow::anyhow!(e)))?;
 
-    async fn handle_message_success(
-        &self,
-        message_id: Uuid,
-        destination_id: Uuid,
-        messenger_type: MessengerType,
-    ) -> Result<(), ProcessingError> {
-        // Update status to Sent
-        self.update_destination_status(destination_id, DeliveryStatus::Sent, None)
-            .await?;
-
-        // Dispatch MessageSent event
-        let event = DomainEvent::MessageSent(MessageSent {
-            message_id,
-            destination_id,
-            messenger_type,
-            chat_id: "placeholder".to_string(), // Would be actual chat ID
-            platform_message_id: Some("platform_id".to_string()),
-            occurred_at: Utc::now(),
-        });
-
-        self.event_dispatcher
-            .dispatch(event)
-            .await
-            .map_err(|e| ProcessingError::EventError(e.to_string()))?;
-
-        Ok(())
-    }
-
-    pub async fn retry_failed_message(&self, destination_id: Uuid) -> Result<(), ProcessingError> {
-        // In a real implementation, we'd fetch the destination to check retry count
-        // For now, we'll just enqueue it again
-
-        let event = DomainEvent::MessageRetryScheduled(MessageRetryScheduled {
-            message_id: Uuid::new_v4(), // Placeholder
-            destination_id,
-            messenger_type: MessengerType::Telegram, // Placeholder
-            retry_count: 1,                          // Placeholder
-            scheduled_at: Utc::now(),
-        });
-
-        self.event_dispatcher
-            .dispatch(event)
-            .await
-            .map_err(|e| ProcessingError::EventError(e.to_string()))?;
+                // Schedule auto retry if not exhausted
+                if updated_destination.retry_count < 3 {
+                    // Use the auto retry method that respects retry limits
+                    if let Err(e) = self.auto_retry_failed_message(destination_id).await {
+                        tracing::error!("Failed to auto-retry destination {}: {}", destination_id, e);
+                    }
+                } else {
+                    // Mark as retry exhausted (use Failed status)
+                    updated_destination.status = DeliveryStatus::Failed;
+                    self.repository.update_destination(&updated_destination).await
+                        .map_err(|e| MessageServiceError::ProcessingError(anyhow::anyhow!(e)))?;
+                }
+            }
+        }
 
         Ok(())
-    }
-
-    pub async fn get_message_status(
-        &self,
-        message_id: Uuid,
-    ) -> Result<Vec<MessageDestination>, ProcessingError> {
-        self.repository
-            .find_destinations_by_message_id(message_id)
-            .await
-            .map_err(|e| ProcessingError::RepositoryError(e.to_string()))
     }
 }
+
+  
