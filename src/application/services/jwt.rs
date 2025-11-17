@@ -11,6 +11,7 @@ use crate::domain::models::User;
 pub struct JwtServiceConfig {
     pub secret: String,
     pub expiration: Duration,
+    pub refresh_expiration: Duration,
 }
 
 #[derive(Clone)]
@@ -44,10 +45,18 @@ impl JwtService {
     }
 
     pub fn issue(&self, user: &User) -> anyhow::Result<String> {
+        self.issue_with_expiration(user, self.config.expiration)
+    }
+
+    pub fn issue_refresh(&self, user: &User) -> anyhow::Result<String> {
+        self.issue_with_expiration(user, self.config.refresh_expiration)
+    }
+
+    fn issue_with_expiration(&self, user: &User, expiration: Duration) -> anyhow::Result<String> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .context("failed to calculate current timestamp")?;
-        let exp = now + self.config.expiration;
+        let exp = now + expiration;
         let claims = Claims {
             sub: user.id,
             email: user.email.clone(),

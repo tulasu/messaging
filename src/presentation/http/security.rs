@@ -1,13 +1,9 @@
-use poem::{Error as PoemError, Result as PoemResult, http::StatusCode};
-use poem_openapi::SecurityScheme;
-use poem_openapi::auth::Bearer;
+use poem::{Error as PoemError, Result as PoemResult, http::StatusCode, web::cookie::CookieJar};
 use uuid::Uuid;
 
 use crate::application::services::jwt::{JwtService, JwtServiceConfig};
 
-#[derive(SecurityScheme)]
-#[oai(ty = "bearer", bearer_format = "JWT")]
-pub struct JwtAuth(pub Bearer);
+pub struct JwtAuth;
 
 pub struct AuthenticatedUser {
     pub user_id: Uuid,
@@ -15,9 +11,19 @@ pub struct AuthenticatedUser {
 }
 
 impl JwtAuth {
-    pub fn into_user(self, config: &JwtServiceConfig) -> PoemResult<AuthenticatedUser> {
+    pub fn from_cookies(
+        cookie_jar: &CookieJar,
+        config: &JwtServiceConfig,
+    ) -> PoemResult<AuthenticatedUser> {
+        let token = cookie_jar
+            .get("access_token")
+            .map(|c| c.value_str().to_string())
+            .ok_or_else(|| {
+                PoemError::from_string("access token not found", StatusCode::UNAUTHORIZED)
+            })?;
+
         let service = JwtService::new(config.clone());
-        match service.verify(&self.0.token) {
+        match service.verify(&token) {
             Ok(claims) => Ok(AuthenticatedUser {
                 user_id: claims.sub,
                 email: claims.email,

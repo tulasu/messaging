@@ -10,6 +10,7 @@ pub struct Config {
     pub database_max_connections: u32,
     pub jwt_secret: String,
     pub jwt_ttl_seconds: u64,
+    pub jwt_refresh_ttl_seconds: u64,
     pub nats_url: String,
     pub nats_stream: String,
     pub nats_subject: String,
@@ -38,6 +39,9 @@ impl Config {
             jwt_ttl_seconds: read_var("JWT_TTL_SECONDS")?
                 .parse::<u64>()
                 .map_err(|_| "invalid JWT_TTL_SECONDS")?,
+            jwt_refresh_ttl_seconds: read_var_or_default("JWT_REFRESH_TTL_SECONDS", "604800")
+                .parse::<u64>()
+                .map_err(|_| "invalid JWT_REFRESH_TTL_SECONDS")?,
             nats_url: read_var("NATS_URL")?,
             nats_stream: read_var_or_default("NATS_STREAM", "MESSAGING"),
             nats_subject: read_var_or_default("NATS_SUBJECT", "messaging.outbound"),

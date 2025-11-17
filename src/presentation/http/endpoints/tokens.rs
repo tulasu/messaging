@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use poem::{Result as PoemResult, web::cookie::CookieJar};
 use poem_openapi::{OpenApi, payload::Json};
 
 use crate::{
@@ -33,10 +34,10 @@ impl TokensEndpoints {
     )]
     pub async fn register_token(
         &self,
-        auth: JwtAuth,
+        cookie_jar: &CookieJar,
         request: Json<RegisterTokenRequestDto>,
-    ) -> poem::Result<Json<MessengerTokenDto>> {
-        let user = auth.into_user(&self.state.jwt_config)?;
+    ) -> PoemResult<Json<MessengerTokenDto>> {
+        let user = JwtAuth::from_cookies(cookie_jar, &self.state.jwt_config)?;
         let payload = RegisterTokenRequest {
             user_id: user.user_id,
             messenger: request.messenger.into(),
@@ -59,8 +60,11 @@ impl TokensEndpoints {
         method = "get",
         tag = EndpointsTags::Tokens,
     )]
-    pub async fn list_tokens(&self, auth: JwtAuth) -> poem::Result<Json<Vec<MessengerTokenDto>>> {
-        let user = auth.into_user(&self.state.jwt_config)?;
+    pub async fn list_tokens(
+        &self,
+        cookie_jar: &CookieJar,
+    ) -> PoemResult<Json<Vec<MessengerTokenDto>>> {
+        let user = JwtAuth::from_cookies(cookie_jar, &self.state.jwt_config)?;
 
         let tokens = self
             .state

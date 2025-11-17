@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use poem::{Result as PoemResult, web::cookie::CookieJar};
 use poem_openapi::{OpenApi, payload::Json};
 
 use crate::{
@@ -35,10 +36,10 @@ impl MessagesEndpoints {
     )]
     pub async fn send_message(
         &self,
-        auth: JwtAuth,
+        cookie_jar: &CookieJar,
         request: Json<SendMessageRequestDto>,
-    ) -> poem::Result<Json<SendMessageResponseDto>> {
-        let user = auth.into_user(&self.state.jwt_config)?;
+    ) -> PoemResult<Json<SendMessageResponseDto>> {
+        let user = JwtAuth::from_cookies(cookie_jar, &self.state.jwt_config)?;
         let payload = ScheduleMessageRequest {
             user_id: user.user_id,
             messenger: request.messenger.into(),
@@ -64,8 +65,11 @@ impl MessagesEndpoints {
         method = "get",
         tag = EndpointsTags::Messages,
     )]
-    pub async fn list_messages(&self, auth: JwtAuth) -> poem::Result<Json<Vec<MessageHistoryDto>>> {
-        let user = auth.into_user(&self.state.jwt_config)?;
+    pub async fn list_messages(
+        &self,
+        cookie_jar: &CookieJar,
+    ) -> PoemResult<Json<Vec<MessageHistoryDto>>> {
+        let user = JwtAuth::from_cookies(cookie_jar, &self.state.jwt_config)?;
 
         let entries = self
             .state
@@ -84,10 +88,10 @@ impl MessagesEndpoints {
     )]
     pub async fn retry_message(
         &self,
-        auth: JwtAuth,
+        cookie_jar: &CookieJar,
         request: Json<RetryMessageRequestDto>,
-    ) -> poem::Result<()> {
-        let user = auth.into_user(&self.state.jwt_config)?;
+    ) -> PoemResult<()> {
+        let user = JwtAuth::from_cookies(cookie_jar, &self.state.jwt_config)?;
 
         self.state
             .retry_message_usecase

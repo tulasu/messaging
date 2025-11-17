@@ -20,7 +20,8 @@ pub struct AuthRequest {
 }
 
 pub struct AuthResponse {
-    pub token: String,
+    pub access_token: String,
+    pub refresh_token: String,
 }
 
 impl AuthenticateUserUseCase {
@@ -46,7 +47,26 @@ impl AuthenticateUserUseCase {
         user.updated_at = Utc::now();
         self.user_repo.upsert(&user).await?;
 
-        let token = self.jwt.issue(&user)?;
-        Ok(AuthResponse { token })
+        let access_token = self.jwt.issue(&user)?;
+        let refresh_token = self.jwt.issue_refresh(&user)?;
+        Ok(AuthResponse {
+            access_token,
+            refresh_token,
+        })
+    }
+
+    pub async fn refresh(&self, user_id: Uuid) -> anyhow::Result<AuthResponse> {
+        let user = self
+            .user_repo
+            .get(&user_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("user not found"))?;
+
+        let access_token = self.jwt.issue(&user)?;
+        let refresh_token = self.jwt.issue_refresh(&user)?;
+        Ok(AuthResponse {
+            access_token,
+            refresh_token,
+        })
     }
 }

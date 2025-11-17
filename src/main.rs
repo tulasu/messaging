@@ -72,6 +72,7 @@ async fn main() -> Result<(), Error> {
     let jwt_config = JwtServiceConfig {
         secret: config.jwt_secret.clone(),
         expiration: Duration::from_secs(config.jwt_ttl_seconds),
+        refresh_expiration: Duration::from_secs(config.jwt_refresh_ttl_seconds),
     };
 
     let schedule_config = ScheduleMessageConfig {

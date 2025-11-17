@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use poem::{Error as PoemError, Result as PoemResult, web::cookie::CookieJar};
 use poem_openapi::{OpenApi, param::Path, payload::Json};
 
 use crate::presentation::http::{
@@ -30,10 +31,10 @@ impl ChatsEndpoints {
     )]
     pub async fn list_chats(
         &self,
-        auth: JwtAuth,
+        cookie_jar: &CookieJar,
         messenger: Path<MessengerKind>,
-    ) -> poem::Result<Json<Vec<MessengerChatDto>>> {
-        let user = auth.into_user(&self.state.jwt_config)?;
+    ) -> PoemResult<Json<Vec<MessengerChatDto>>> {
+        let user = JwtAuth::from_cookies(cookie_jar, &self.state.jwt_config)?;
         let chats = self
             .state
             .list_chats_usecase
@@ -45,6 +46,6 @@ impl ChatsEndpoints {
     }
 }
 
-fn bad_request(err: anyhow::Error) -> poem::Error {
-    poem::Error::from_string(err.to_string(), poem::http::StatusCode::BAD_REQUEST)
+fn bad_request(err: anyhow::Error) -> PoemError {
+    PoemError::from_string(err.to_string(), poem::http::StatusCode::BAD_REQUEST)
 }

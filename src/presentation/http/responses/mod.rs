@@ -5,7 +5,7 @@ use crate::presentation::models::{ChatTypeKind, MessageStatusDto, MessengerKind,
 
 #[derive(Object)]
 pub struct AuthResponseDto {
-    pub token: String,
+    pub success: bool,
 }
 
 #[derive(Object)]
