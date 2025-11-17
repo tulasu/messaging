@@ -65,4 +65,3 @@ impl JwtService {
             .context("failed to verify JWT")
     }
 }
-

@@ -7,9 +7,7 @@ use crate::{
     application::services::event_bus::MessageBus,
     domain::{
         events::OutboundMessageEvent,
-        models::{
-            MessageContent, MessageStatus, MessageType, MessengerType, RequestedBy,
-        },
+        models::{MessageContent, MessageStatus, MessageType, MessengerType, RequestedBy},
         repositories::{MessageHistoryRepository, MessengerTokenRepository},
     },
 };
@@ -98,10 +96,7 @@ impl ScheduleMessageUseCase {
         })
     }
 
-    async fn ensure_token_exists(
-        &self,
-        request: &ScheduleMessageRequest,
-    ) -> anyhow::Result<()> {
+    async fn ensure_token_exists(&self, request: &ScheduleMessageRequest) -> anyhow::Result<()> {
         let token = self
             .token_repo
             .find_active(&request.user_id, request.messenger)
@@ -112,4 +107,3 @@ impl ScheduleMessageUseCase {
         Ok(())
     }
 }
-

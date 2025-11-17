@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::{
-    domain::models::RequestedBy,
-    domain::repositories::MessageHistoryRepository,
-};
+use crate::{domain::models::RequestedBy, domain::repositories::MessageHistoryRepository};
 
 use super::schedule_message::{ScheduleMessageRequest, ScheduleMessageUseCase};
 
@@ -54,4 +51,3 @@ impl RetryMessageUseCase {
         Ok(())
     }
 }
-

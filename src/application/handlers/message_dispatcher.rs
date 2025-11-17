@@ -54,10 +54,7 @@ impl MessageDispatchHandler {
             .get(event.messenger)
             .ok_or_else(|| anyhow::anyhow!("no client registered for messenger"))?;
 
-        if let Err(err) = client
-            .send(&token, &event.recipient, &event.content)
-            .await
-        {
+        if let Err(err) = client.send(&token, &event.recipient, &event.content).await {
             let reason = err.to_string();
             let status = if event.attempt >= event.max_attempts {
                 MessageStatus::Failed {
@@ -71,11 +68,7 @@ impl MessageDispatchHandler {
                 }
             };
             self.history_repo
-                .update_status(
-                    event.message_id,
-                    status,
-                    event.attempt,
-                )
+                .update_status(event.message_id, status, event.attempt)
                 .await?;
             return Err(err);
         }
@@ -87,4 +80,3 @@ impl MessageDispatchHandler {
         Ok(())
     }
 }
-

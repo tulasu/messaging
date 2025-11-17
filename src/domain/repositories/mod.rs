@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use crate::domain::models::{
-    MessageContent, MessageHistoryEntry, MessageStatus, MessengerToken, MessengerType,
-    RequestedBy, User,
+    MessageContent, MessageHistoryEntry, MessageStatus, MessengerToken, MessengerType, RequestedBy,
+    User,
 };
 
 #[async_trait]
@@ -46,4 +46,3 @@ pub trait MessageHistoryRepository: Send + Sync {
 
     async fn list_by_user(&self, user_id: Uuid) -> anyhow::Result<Vec<MessageHistoryEntry>>;
 }
-

@@ -34,4 +34,3 @@ impl MessengerGateway {
         self.clients.get(&messenger).cloned()
     }
 }
-

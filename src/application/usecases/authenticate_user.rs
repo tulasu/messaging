@@ -50,4 +50,3 @@ impl AuthenticateUserUseCase {
         Ok(AuthResponse { token })
     }
 }
-

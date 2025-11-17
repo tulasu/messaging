@@ -2,18 +2,14 @@ use std::io::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
-use poem::{listener::TcpListener, Route, Server};
+use poem::{Route, Server, listener::TcpListener};
 use poem_openapi::OpenApiService;
 use tokio::main;
 
 use crate::{
     application::{
         handlers::message_dispatcher::MessageDispatchHandler,
-        services::{
-            event_bus::MessageBus,
-            jwt::JwtServiceConfig,
-            messenger::MessengerGateway,
-        },
+        services::{event_bus::MessageBus, jwt::JwtServiceConfig, messenger::MessengerGateway},
         usecases::{
             authenticate_user::AuthenticateUserUseCase,
             list_messages::ListMessagesUseCase,
@@ -24,9 +20,7 @@ use crate::{
         },
     },
     config::Config,
-    domain::repositories::{
-        MessageHistoryRepository, MessengerTokenRepository, UserRepository,
-    },
+    domain::repositories::{MessageHistoryRepository, MessengerTokenRepository, UserRepository},
     infrastructure::{
         messaging::{
             jetstream::{JetstreamBus, JetstreamConfig},
@@ -52,17 +46,13 @@ async fn main() -> Result<(), Error> {
     let config = Config::try_parse().map_err(Error::other)?;
 
     // infrastructure
-    let user_repo: Arc<dyn UserRepository> =
-        Arc::new(InMemoryUserRepository::new());
+    let user_repo: Arc<dyn UserRepository> = Arc::new(InMemoryUserRepository::new());
     let token_repo: Arc<dyn MessengerTokenRepository> =
         Arc::new(InMemoryMessengerTokenRepository::new());
     let history_repo: Arc<dyn MessageHistoryRepository> =
         Arc::new(InMemoryMessageHistoryRepository::new());
 
-    let messenger_gateway = MessengerGateway::new(vec![
-        TelegramClient::new(), 
-        VkClient::new()
-    ]);
+    let messenger_gateway = MessengerGateway::new(vec![TelegramClient::new(), VkClient::new()]);
 
     let jwt_config = JwtServiceConfig {
         secret: config.jwt_secret.clone(),
@@ -92,18 +82,15 @@ async fn main() -> Result<(), Error> {
         user_repo.clone(),
         jwt_config.clone(),
     ));
-    let register_token_usecase =
-        Arc::new(RegisterTokenUseCase::new(token_repo.clone()));
-    let list_tokens_usecase =
-        Arc::new(ListTokensUseCase::new(token_repo.clone()));
+    let register_token_usecase = Arc::new(RegisterTokenUseCase::new(token_repo.clone()));
+    let list_tokens_usecase = Arc::new(ListTokensUseCase::new(token_repo.clone()));
     let schedule_message_usecase = Arc::new(ScheduleMessageUseCase::new(
         token_repo.clone(),
         history_repo.clone(),
         bus.clone(),
         schedule_config,
     ));
-    let list_messages_usecase =
-        Arc::new(ListMessagesUseCase::new(history_repo.clone()));
+    let list_messages_usecase = Arc::new(ListMessagesUseCase::new(history_repo.clone()));
     let retry_message_usecase = Arc::new(RetryMessageUseCase::new(
         history_repo.clone(),
         schedule_message_usecase.clone(),
@@ -130,9 +117,8 @@ async fn main() -> Result<(), Error> {
 
     println!("Starting server at {}", server_url);
 
-    let api_service =
-        OpenApiService::new(Endpoints::new(api_state), "Messaging API", "0.1.0")
-            .server(format!("{}/api", server_url));
+    let api_service = OpenApiService::new(Endpoints::new(api_state), "Messaging API", "0.1.0")
+        .server(format!("{}/api", server_url));
     let ui = api_service.swagger_ui();
     let app = Route::new().nest("/api", api_service).nest("/", ui);
 

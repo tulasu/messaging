@@ -24,10 +24,7 @@ impl RegisterTokenUseCase {
         Self { repo }
     }
 
-    pub async fn execute(
-        &self,
-        request: RegisterTokenRequest,
-    ) -> anyhow::Result<MessengerToken> {
+    pub async fn execute(&self, request: RegisterTokenRequest) -> anyhow::Result<MessengerToken> {
         let token = MessengerToken {
             id: Uuid::new_v4(),
             user_id: request.user_id,
@@ -42,4 +39,3 @@ impl RegisterTokenUseCase {
         self.repo.upsert(token.clone()).await
     }
 }
-

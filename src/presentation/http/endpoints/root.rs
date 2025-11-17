@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use poem_openapi::Tags;
 
+use crate::application::services::jwt::JwtServiceConfig;
 use crate::application::usecases::{
     authenticate_user::AuthenticateUserUseCase, list_messages::ListMessagesUseCase,
     list_tokens::ListTokensUseCase, register_token::RegisterTokenUseCase,
     retry_message::RetryMessageUseCase, schedule_message::ScheduleMessageUseCase,
 };
-use crate::application::services::jwt::JwtServiceConfig;
 
 /// Root of messaging HTTP API.
 ///

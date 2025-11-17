@@ -3,15 +3,14 @@ use std::time::Duration;
 
 use async_nats::jetstream::{
     self,
-    consumer::{pull, AckPolicy},
+    consumer::{AckPolicy, pull},
 };
 use tokio::task::JoinHandle;
 use tokio_stream::StreamExt;
 
 use crate::{
     application::{
-        handlers::message_dispatcher::MessageDispatchHandler,
-        services::event_bus::MessageBus,
+        handlers::message_dispatcher::MessageDispatchHandler, services::event_bus::MessageBus,
     },
     domain::events::OutboundMessageEvent,
 };
@@ -160,4 +159,3 @@ impl JetstreamWorker {
         Ok(())
     }
 }
-

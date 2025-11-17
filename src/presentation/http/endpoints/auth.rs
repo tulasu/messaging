@@ -1,5 +1,5 @@
 use poem::error::InternalServerError;
-use poem_openapi::{payload::Json, OpenApi};
+use poem_openapi::{OpenApi, payload::Json};
 
 use crate::{
     application::usecases::authenticate_user::AuthRequest,
@@ -29,7 +29,8 @@ impl Endpoints {
             .await
             .map_err(|err| InternalServerError(err.to_string()))?;
 
-        Ok(Json(AuthResponseDto { token: response.token }))
+        Ok(Json(AuthResponseDto {
+            token: response.token,
+        }))
     }
 }
-

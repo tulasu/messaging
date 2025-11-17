@@ -23,7 +23,9 @@ impl Config {
         let _ = dotenv();
 
         Ok(Config {
-            port: read_var("PORT")?.parse::<u16>().map_err(|_| "invalid PORT")?,
+            port: read_var("PORT")?
+                .parse::<u16>()
+                .map_err(|_| "invalid PORT")?,
             scheme: read_var("SCHEME")?,
             host: read_var("HOST")?,
             jwt_secret: read_var("JWT_SECRET")?,

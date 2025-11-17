@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::domain::{
-    models::MessageHistoryEntry,
-    repositories::MessageHistoryRepository,
-};
+use crate::domain::{models::MessageHistoryEntry, repositories::MessageHistoryRepository};
 
 pub struct ListMessagesUseCase {
     repo: Arc<dyn MessageHistoryRepository>,
@@ -16,11 +13,7 @@ impl ListMessagesUseCase {
         Self { repo }
     }
 
-    pub async fn execute(
-        &self,
-        user_id: Uuid,
-    ) -> anyhow::Result<Vec<MessageHistoryEntry>> {
+    pub async fn execute(&self, user_id: Uuid) -> anyhow::Result<Vec<MessageHistoryEntry>> {
         self.repo.list_by_user(user_id).await
     }
 }
-

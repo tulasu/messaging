@@ -17,4 +17,3 @@ pub struct OutboundMessageEvent {
     pub max_attempts: u32,
     pub scheduled_at: DateTime<Utc>,
 }
-

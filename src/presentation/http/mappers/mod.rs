@@ -1,11 +1,7 @@
 use crate::{
-    domain::models::{
-        MessageHistoryEntry, MessageStatus, MessengerToken, MessengerTokenStatus,
-    },
+    domain::models::{MessageHistoryEntry, MessageStatus, MessengerToken, MessengerTokenStatus},
     presentation::{
-        http::responses::{
-            MessageHistoryDto, MessengerTokenDto, MessengerTokenStatusDto,
-        },
+        http::responses::{MessageHistoryDto, MessengerTokenDto, MessengerTokenStatusDto},
         models::{MessageStatusDto, MessengerKind, RequestedByKind},
     },
 };
@@ -44,4 +40,3 @@ fn extract_error(status: &MessageStatus) -> Option<String> {
         _ => None,
     }
 }
-

@@ -13,4 +13,3 @@ pub enum DomainError {
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
-

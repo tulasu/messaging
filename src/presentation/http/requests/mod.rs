@@ -33,4 +33,3 @@ pub struct SendMessageRequestDto {
 pub struct RetryMessageRequestDto {
     pub message_id: Uuid,
 }
-

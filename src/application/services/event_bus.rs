@@ -6,4 +6,3 @@ use crate::domain::events::OutboundMessageEvent;
 pub trait MessageBus: Send + Sync {
     async fn publish(&self, event: OutboundMessageEvent) -> anyhow::Result<()>;
 }
-

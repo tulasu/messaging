@@ -6,4 +6,3 @@ pub enum MessengerType {
     Telegram,
     Vk,
 }
-

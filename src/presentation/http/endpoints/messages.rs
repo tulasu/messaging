@@ -1,19 +1,16 @@
 use poem::error::{BadRequest, InternalServerError};
-use poem_openapi::{payload::Json, OpenApi};
+use poem_openapi::{OpenApi, payload::Json};
 
 use crate::{
     application::usecases::{
-        retry_message::RetryMessageRequest,
-        schedule_message::ScheduleMessageRequest,
+        retry_message::RetryMessageRequest, schedule_message::ScheduleMessageRequest,
     },
-    presentation::{
-        http::{
-            endpoints::root::{Endpoints, EndpointsTags},
-            mappers::map_history,
-            requests::{RetryMessageRequestDto, SendMessageRequestDto},
-            responses::{MessageHistoryDto, SendMessageResponseDto},
-            security::JwtAuth,
-        },
+    presentation::http::{
+        endpoints::root::{Endpoints, EndpointsTags},
+        mappers::map_history,
+        requests::{RetryMessageRequestDto, SendMessageRequestDto},
+        responses::{MessageHistoryDto, SendMessageResponseDto},
+        security::JwtAuth,
     },
 };
 
@@ -57,10 +54,7 @@ impl Endpoints {
         tag = EndpointsTags::Messages,
         security(("jwt" = [JwtAuth]))
     )]
-    pub async fn list_messages(
-        &self,
-        auth: JwtAuth,
-    ) -> poem::Result<Json<Vec<MessageHistoryDto>>> {
+    pub async fn list_messages(&self, auth: JwtAuth) -> poem::Result<Json<Vec<MessageHistoryDto>>> {
         let user = auth.into_user(&self.state.jwt_config)?;
 
         let entries = self
@@ -98,4 +92,3 @@ impl Endpoints {
         Ok(())
     }
 }
-

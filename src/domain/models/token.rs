@@ -21,4 +21,3 @@ pub enum MessengerTokenStatus {
     Active,
     Inactive,
 }
-

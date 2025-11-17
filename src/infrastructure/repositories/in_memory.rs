@@ -8,12 +8,10 @@ use uuid::Uuid;
 
 use crate::domain::{
     models::{
-        MessageContent, MessageHistoryEntry, MessageStatus, MessengerToken,
-        MessengerTokenStatus, MessengerType, RequestedBy, User,
+        MessageContent, MessageHistoryEntry, MessageStatus, MessengerToken, MessengerTokenStatus,
+        MessengerType, RequestedBy, User,
     },
-    repositories::{
-        MessageHistoryRepository, MessengerTokenRepository, UserRepository,
-    },
+    repositories::{MessageHistoryRepository, MessengerTokenRepository, UserRepository},
 };
 
 #[derive(Default)]
@@ -59,10 +57,7 @@ impl InMemoryMessengerTokenRepository {
 
 #[async_trait]
 impl MessengerTokenRepository for InMemoryMessengerTokenRepository {
-    async fn upsert(
-        &self,
-        mut token: MessengerToken,
-    ) -> anyhow::Result<MessengerToken> {
+    async fn upsert(&self, mut token: MessengerToken) -> anyhow::Result<MessengerToken> {
         token.updated_at = Utc::now();
         let mut tokens = self.tokens.write().await;
 
@@ -97,10 +92,7 @@ impl MessengerTokenRepository for InMemoryMessengerTokenRepository {
             .cloned())
     }
 
-    async fn list_by_user(
-        &self,
-        user_id: &Uuid,
-    ) -> anyhow::Result<Vec<MessengerToken>> {
+    async fn list_by_user(&self, user_id: &Uuid) -> anyhow::Result<Vec<MessengerToken>> {
         let tokens = self.tokens.read().await;
         Ok(tokens
             .values()
@@ -164,18 +156,12 @@ impl MessageHistoryRepository for InMemoryMessageHistoryRepository {
         Ok(())
     }
 
-    async fn get(
-        &self,
-        message_id: Uuid,
-    ) -> anyhow::Result<Option<MessageHistoryEntry>> {
+    async fn get(&self, message_id: Uuid) -> anyhow::Result<Option<MessageHistoryEntry>> {
         let messages = self.messages.read().await;
         Ok(messages.get(&message_id).cloned())
     }
 
-    async fn list_by_user(
-        &self,
-        user_id: Uuid,
-    ) -> anyhow::Result<Vec<MessageHistoryEntry>> {
+    async fn list_by_user(&self, user_id: Uuid) -> anyhow::Result<Vec<MessageHistoryEntry>> {
         let messages = self.messages.read().await;
         Ok(messages
             .values()
@@ -184,4 +170,3 @@ impl MessageHistoryRepository for InMemoryMessageHistoryRepository {
             .collect())
     }
 }
-

@@ -1,6 +1,6 @@
 use poem::error::Unauthorized;
-use poem_openapi::auth::Bearer;
 use poem_openapi::SecurityScheme;
+use poem_openapi::auth::Bearer;
 use uuid::Uuid;
 
 use crate::application::services::jwt::{JwtService, JwtServiceConfig};
@@ -36,4 +36,3 @@ impl JwtAuth {
         }
     }
 }
-

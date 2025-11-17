@@ -17,4 +17,3 @@ impl ListTokensUseCase {
         self.repo.list_by_user(&user_id).await
     }
 }
-

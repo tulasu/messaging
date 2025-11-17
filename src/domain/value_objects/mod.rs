@@ -4,4 +4,3 @@ use serde::{Deserialize, Serialize};
 pub struct Recipient {
     pub chat_id: String,
 }
-

@@ -1,16 +1,14 @@
 use poem::error::InternalServerError;
-use poem_openapi::{payload::Json, OpenApi};
+use poem_openapi::{OpenApi, payload::Json};
 
 use crate::{
     application::usecases::register_token::RegisterTokenRequest,
-    presentation::{
-        http::{
-            endpoints::root::{Endpoints, EndpointsTags},
-            mappers::map_token,
-            requests::RegisterTokenRequestDto,
-            responses::MessengerTokenDto,
-            security::JwtAuth,
-        },
+    presentation::http::{
+        endpoints::root::{Endpoints, EndpointsTags},
+        mappers::map_token,
+        requests::RegisterTokenRequestDto,
+        responses::MessengerTokenDto,
+        security::JwtAuth,
     },
 };
 
@@ -51,10 +49,7 @@ impl Endpoints {
         tag = EndpointsTags::Tokens,
         security(("jwt" = [JwtAuth]))
     )]
-    pub async fn list_tokens(
-        &self,
-        auth: JwtAuth,
-    ) -> poem::Result<Json<Vec<MessengerTokenDto>>> {
+    pub async fn list_tokens(&self, auth: JwtAuth) -> poem::Result<Json<Vec<MessengerTokenDto>>> {
         let user = auth.into_user(&self.state.jwt_config)?;
 
         let tokens = self
@@ -67,4 +62,3 @@ impl Endpoints {
         Ok(Json(tokens.iter().map(map_token).collect()))
     }
 }
-

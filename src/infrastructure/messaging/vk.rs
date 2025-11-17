@@ -35,4 +35,3 @@ impl MessengerClient for VkClient {
         Ok(())
     }
 }
-
