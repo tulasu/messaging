@@ -6,6 +6,30 @@
 
 A Rust application for sending messages across multiple messaging platforms including VK, Telegram and MAX.
 
+## Running locally
+
+### Docker Compose
+
+```bash
+docker compose up --build
+```
+
+The compose stack launches PostgreSQL, NATS JetStream and the API container. Default credentials are defined directly inside `docker-compose.yml`. Adjust them through environment variables if needed.
+
+### Manual run
+
+1. Copy `docs/env.example` to `.env` and adjust values (database URL, NATS endpoint, JWT secret).
+2. Start PostgreSQL and NATS services that match your configuration.
+3. Run migrations on startup automatically by launching the API:
+
+```bash
+cargo run
+```
+
+## New API surface
+
+- `GET /api/messengers/{messenger}/chats` returns chats and conversations fetched from VK/Telegram using the active token registered for the authenticated user.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

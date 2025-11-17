@@ -1,7 +1,7 @@
 use poem_openapi::{Enum, Object};
 use uuid::Uuid;
 
-use crate::presentation::models::{MessageStatusDto, MessengerKind, RequestedByKind};
+use crate::presentation::models::{ChatTypeKind, MessageStatusDto, MessengerKind, RequestedByKind};
 
 #[derive(Object)]
 pub struct AuthResponseDto {
@@ -39,4 +39,13 @@ pub struct MessageHistoryDto {
     pub requested_by: RequestedByKind,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Object)]
+pub struct MessengerChatDto {
+    pub messenger: MessengerKind,
+    pub chat_id: String,
+    pub title: String,
+    pub chat_type: ChatTypeKind,
+    pub can_send_messages: bool,
 }

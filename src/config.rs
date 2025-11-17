@@ -6,6 +6,8 @@ pub struct Config {
     pub port: u16,
     pub scheme: String,
     pub host: String,
+    pub database_url: String,
+    pub database_max_connections: u32,
     pub jwt_secret: String,
     pub jwt_ttl_seconds: u64,
     pub nats_url: String,
@@ -28,6 +30,10 @@ impl Config {
                 .map_err(|_| "invalid PORT")?,
             scheme: read_var("SCHEME")?,
             host: read_var("HOST")?,
+            database_url: read_var("DATABASE_URL")?,
+            database_max_connections: read_var_or_default("DATABASE_MAX_CONNECTIONS", "8")
+                .parse::<u32>()
+                .map_err(|_| "invalid DATABASE_MAX_CONNECTIONS")?,
             jwt_secret: read_var("JWT_SECRET")?,
             jwt_ttl_seconds: read_var("JWT_TTL_SECONDS")?
                 .parse::<u64>()

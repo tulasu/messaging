@@ -5,7 +5,6 @@ use crate::presentation::models::{MessengerKind, RequestedByKind};
 
 #[derive(Object, Debug)]
 pub struct AuthRequestDto {
-    #[oai(validator(email))]
     pub email: String,
     pub display_name: Option<String>,
 }

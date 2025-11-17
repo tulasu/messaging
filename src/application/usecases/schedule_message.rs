@@ -60,6 +60,7 @@ impl ScheduleMessageUseCase {
             body: request.text.clone(),
             message_type: MessageType::PlainText,
         };
+        let message_type = content.message_type.clone();
 
         let history_entry = self
             .history_repo
@@ -82,7 +83,7 @@ impl ScheduleMessageUseCase {
             user_id: request.user_id,
             messenger: request.messenger,
             recipient: request.recipient,
-            message_type: content.message_type,
+            message_type,
             content,
             attempt: 1,
             max_attempts: self.config.max_attempts,

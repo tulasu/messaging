@@ -1,4 +1,4 @@
-use poem::error::Unauthorized;
+use poem::{Error as PoemError, Result as PoemResult, http::StatusCode};
 use poem_openapi::SecurityScheme;
 use poem_openapi::auth::Bearer;
 use uuid::Uuid;
@@ -6,12 +6,7 @@ use uuid::Uuid;
 use crate::application::services::jwt::{JwtService, JwtServiceConfig};
 
 #[derive(SecurityScheme)]
-#[oai(
-    ty = "bearer",
-    bearer_format = "JWT",
-    in = "header",
-    key_name = "Authorization"
-)]
+#[oai(ty = "bearer", bearer_format = "JWT")]
 pub struct JwtAuth(pub Bearer);
 
 pub struct AuthenticatedUser {
@@ -20,19 +15,17 @@ pub struct AuthenticatedUser {
 }
 
 impl JwtAuth {
-    pub fn into_user(self, config: &JwtServiceConfig) -> Result<AuthenticatedUser, Unauthorized> {
-        let token = self
-            .0
-            .token
-            .ok_or_else(|| Unauthorized("Missing bearer token"))?;
-
+    pub fn into_user(self, config: &JwtServiceConfig) -> PoemResult<AuthenticatedUser> {
         let service = JwtService::new(config.clone());
-        match service.verify(&token) {
+        match service.verify(&self.0.token) {
             Ok(claims) => Ok(AuthenticatedUser {
                 user_id: claims.sub,
                 email: claims.email,
             }),
-            Err(_) => Err(Unauthorized("Invalid or expired token")),
+            Err(_) => Err(PoemError::from_string(
+                "invalid or expired token",
+                StatusCode::UNAUTHORIZED,
+            )),
         }
     }
 }

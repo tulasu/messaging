@@ -1,8 +1,12 @@
 use crate::{
-    domain::models::{MessageHistoryEntry, MessageStatus, MessengerToken, MessengerTokenStatus},
+    domain::models::{
+        MessageHistoryEntry, MessageStatus, MessengerChat, MessengerToken, MessengerTokenStatus,
+    },
     presentation::{
-        http::responses::{MessageHistoryDto, MessengerTokenDto, MessengerTokenStatusDto},
-        models::{MessageStatusDto, MessengerKind, RequestedByKind},
+        http::responses::{
+            MessageHistoryDto, MessengerChatDto, MessengerTokenDto, MessengerTokenStatusDto,
+        },
+        models::{ChatTypeKind, MessageStatusDto},
     },
 };
 
@@ -38,5 +42,15 @@ fn extract_error(status: &MessageStatus) -> Option<String> {
         MessageStatus::Retrying { reason, .. } => Some(reason.clone()),
         MessageStatus::Failed { reason, .. } => Some(reason.clone()),
         _ => None,
+    }
+}
+
+pub fn map_chat(chat: &MessengerChat) -> MessengerChatDto {
+    MessengerChatDto {
+        messenger: chat.messenger.into(),
+        chat_id: chat.chat_id.clone(),
+        title: chat.title.clone(),
+        chat_type: ChatTypeKind::from(chat.chat_type.clone()),
+        can_send_messages: chat.can_send_messages,
     }
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::domain::models::{MessageContent, MessengerToken, MessengerType};
+use crate::domain::models::{MessageContent, MessengerChat, MessengerToken, MessengerType};
 
 #[async_trait]
 pub trait MessengerClient: Send + Sync {
@@ -14,6 +14,7 @@ pub trait MessengerClient: Send + Sync {
         recipient: &str,
         content: &MessageContent,
     ) -> anyhow::Result<()>;
+    async fn list_chats(&self, token: &MessengerToken) -> anyhow::Result<Vec<MessengerChat>>;
 }
 
 #[derive(Clone)]

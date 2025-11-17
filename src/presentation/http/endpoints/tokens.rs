@@ -1,10 +1,11 @@
-use poem::error::InternalServerError;
+use std::sync::Arc;
+
 use poem_openapi::{OpenApi, payload::Json};
 
 use crate::{
     application::usecases::register_token::RegisterTokenRequest,
     presentation::http::{
-        endpoints::root::{Endpoints, EndpointsTags},
+        endpoints::root::{ApiState, EndpointsTags},
         mappers::map_token,
         requests::RegisterTokenRequestDto,
         responses::MessengerTokenDto,
@@ -12,13 +13,23 @@ use crate::{
     },
 };
 
+#[derive(Clone)]
+pub struct TokensEndpoints {
+    state: Arc<ApiState>,
+}
+
+impl TokensEndpoints {
+    pub fn new(state: Arc<ApiState>) -> Self {
+        Self { state }
+    }
+}
+
 #[OpenApi]
-impl Endpoints {
+impl TokensEndpoints {
     #[oai(
         path = "/messengers/tokens",
         method = "post",
         tag = EndpointsTags::Tokens,
-        security(("jwt" = [JwtAuth]))
     )]
     pub async fn register_token(
         &self,
@@ -38,7 +49,7 @@ impl Endpoints {
             .register_token_usecase
             .execute(payload)
             .await
-            .map_err(|err| InternalServerError(err.to_string()))?;
+            .map_err(internal_error)?;
 
         Ok(Json(map_token(&token)))
     }
@@ -47,7 +58,6 @@ impl Endpoints {
         path = "/messengers/tokens",
         method = "get",
         tag = EndpointsTags::Tokens,
-        security(("jwt" = [JwtAuth]))
     )]
     pub async fn list_tokens(&self, auth: JwtAuth) -> poem::Result<Json<Vec<MessengerTokenDto>>> {
         let user = auth.into_user(&self.state.jwt_config)?;
@@ -57,8 +67,15 @@ impl Endpoints {
             .list_tokens_usecase
             .execute(user.user_id)
             .await
-            .map_err(|err| InternalServerError(err.to_string()))?;
+            .map_err(internal_error)?;
 
         Ok(Json(tokens.iter().map(map_token).collect()))
     }
+}
+
+fn internal_error(err: anyhow::Error) -> poem::Error {
+    poem::Error::from_string(
+        err.to_string(),
+        poem::http::StatusCode::INTERNAL_SERVER_ERROR,
+    )
 }

@@ -1,6 +1,6 @@
 use poem_openapi::Enum;
 
-use crate::domain::models::{MessageStatus, MessengerType, RequestedBy};
+use crate::domain::models::{MessageStatus, MessengerChatType, MessengerType, RequestedBy};
 
 #[derive(Enum, Copy, Clone, Debug, Eq, PartialEq)]
 pub enum MessengerKind {
@@ -81,6 +81,32 @@ impl From<&MessageStatus> for MessageStatusDto {
             MessageStatus::Retrying { .. } => MessageStatusDto::Retrying,
             MessageStatus::Failed { .. } => MessageStatusDto::Failed,
             MessageStatus::Cancelled => MessageStatusDto::Cancelled,
+        }
+    }
+}
+
+#[derive(Enum, Copy, Clone, Debug, Eq, PartialEq)]
+pub enum ChatTypeKind {
+    #[oai(rename = "direct")]
+    Direct,
+    #[oai(rename = "group")]
+    Group,
+    #[oai(rename = "channel")]
+    Channel,
+    #[oai(rename = "bot")]
+    Bot,
+    #[oai(rename = "unknown")]
+    Unknown,
+}
+
+impl From<MessengerChatType> for ChatTypeKind {
+    fn from(value: MessengerChatType) -> Self {
+        match value {
+            MessengerChatType::Direct => ChatTypeKind::Direct,
+            MessengerChatType::Group => ChatTypeKind::Group,
+            MessengerChatType::Channel => ChatTypeKind::Channel,
+            MessengerChatType::Bot => ChatTypeKind::Bot,
+            MessengerChatType::Unknown => ChatTypeKind::Unknown,
         }
     }
 }

@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: messaging
+      POSTGRES_USER: messaging
+      POSTGRES_PASSWORD: messaging
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U messaging"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nats:
+    image: nats:2.10
+    command: ["-js"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      PORT: 8080
+      HOST: 0.0.0.0
+      SCHEME: http
+      JWT_SECRET: super-secret-key
+      JWT_TTL_SECONDS: 3600
+      DATABASE_URL: postgres://messaging:messaging@postgres:5432/messaging
+      DATABASE_MAX_CONNECTIONS: 5
+      NATS_URL: nats://nats:4222
+      NATS_STREAM: MESSAGING
+      NATS_SUBJECT: messaging.outbound
+      NATS_DURABLE: messaging-worker
+      NATS_PULL_BATCH: 32
+      NATS_ACK_WAIT_SECONDS: 30
+      NATS_MAX_DELIVER: 10
+      SYSTEM_RETRY_LIMIT: 3
+    ports:
+      - "8080:8080"
+    command: ["/usr/local/bin/messaging"]
+
+volumes:
+  postgres_data:
+

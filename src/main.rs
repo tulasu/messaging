@@ -12,6 +12,7 @@ use crate::{
         services::{event_bus::MessageBus, jwt::JwtServiceConfig, messenger::MessengerGateway},
         usecases::{
             authenticate_user::AuthenticateUserUseCase,
+            list_chats::ListChatsUseCase,
             list_messages::ListMessagesUseCase,
             list_tokens::ListTokensUseCase,
             register_token::RegisterTokenUseCase,
@@ -27,13 +28,17 @@ use crate::{
             telegram::TelegramClient,
             vk::VkClient,
         },
-        repositories::in_memory::{
-            InMemoryMessageHistoryRepository, InMemoryMessengerTokenRepository,
-            InMemoryUserRepository,
+        repositories::postgres::{
+            PostgresMessageHistoryRepository, PostgresMessengerTokenRepository,
+            PostgresUserRepository,
         },
     },
-    presentation::http::endpoints::root::{ApiState, Endpoints},
+    presentation::http::endpoints::{
+        auth::AuthEndpoints, chats::ChatsEndpoints, health::HealthEndpoints,
+        messages::MessagesEndpoints, root::ApiState, tokens::TokensEndpoints,
+    },
 };
+use sqlx::postgres::PgPoolOptions;
 
 mod application;
 mod config;
@@ -45,12 +50,22 @@ mod presentation;
 async fn main() -> Result<(), Error> {
     let config = Config::try_parse().map_err(Error::other)?;
 
+    let pool = PgPoolOptions::new()
+        .max_connections(config.database_max_connections)
+        .connect(&config.database_url)
+        .await
+        .map_err(Error::other)?;
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .map_err(Error::other)?;
+
     // infrastructure
-    let user_repo: Arc<dyn UserRepository> = Arc::new(InMemoryUserRepository::new());
+    let user_repo: Arc<dyn UserRepository> = PostgresUserRepository::new(pool.clone());
     let token_repo: Arc<dyn MessengerTokenRepository> =
-        Arc::new(InMemoryMessengerTokenRepository::new());
+        PostgresMessengerTokenRepository::new(pool.clone());
     let history_repo: Arc<dyn MessageHistoryRepository> =
-        Arc::new(InMemoryMessageHistoryRepository::new());
+        PostgresMessageHistoryRepository::new(pool.clone());
 
     let messenger_gateway = MessengerGateway::new(vec![TelegramClient::new(), VkClient::new()]);
 
@@ -84,6 +99,10 @@ async fn main() -> Result<(), Error> {
     ));
     let register_token_usecase = Arc::new(RegisterTokenUseCase::new(token_repo.clone()));
     let list_tokens_usecase = Arc::new(ListTokensUseCase::new(token_repo.clone()));
+    let list_chats_usecase = Arc::new(ListChatsUseCase::new(
+        token_repo.clone(),
+        messenger_gateway.clone(),
+    ));
     let schedule_message_usecase = Arc::new(ScheduleMessageUseCase::new(
         token_repo.clone(),
         history_repo.clone(),
@@ -99,7 +118,7 @@ async fn main() -> Result<(), Error> {
     let dispatcher = Arc::new(MessageDispatchHandler::new(
         token_repo,
         history_repo.clone(),
-        messenger_gateway,
+        messenger_gateway.clone(),
     ));
     let _worker_handle = worker.spawn(dispatcher, bus_impl);
 
@@ -107,6 +126,7 @@ async fn main() -> Result<(), Error> {
         auth_usecase,
         register_token_usecase,
         list_tokens_usecase,
+        list_chats_usecase,
         schedule_message_usecase,
         list_messages_usecase,
         retry_message_usecase,
@@ -117,8 +137,16 @@ async fn main() -> Result<(), Error> {
 
     println!("Starting server at {}", server_url);
 
-    let api_service = OpenApiService::new(Endpoints::new(api_state), "Messaging API", "0.1.0")
-        .server(format!("{}/api", server_url));
+    let apis = (
+        HealthEndpoints::new(api_state.clone()),
+        AuthEndpoints::new(api_state.clone()),
+        TokensEndpoints::new(api_state.clone()),
+        MessagesEndpoints::new(api_state.clone()),
+        ChatsEndpoints::new(api_state.clone()),
+    );
+
+    let api_service =
+        OpenApiService::new(apis, "Messaging API", "0.1.0").server(format!("{}/api", server_url));
     let ui = api_service.swagger_ui();
     let app = Route::new().nest("/api", api_service).nest("/", ui);
 

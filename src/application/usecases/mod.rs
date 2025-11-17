@@ -1,4 +1,5 @@
 pub mod authenticate_user;
+pub mod list_chats;
 pub mod list_messages;
 pub mod list_tokens;
 pub mod register_token;

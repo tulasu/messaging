@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use async_nats::jetstream::{
     self,
-    consumer::{AckPolicy, pull},
+    consumer::{AckPolicy, PullConsumer, pull},
 };
 use tokio::task::JoinHandle;
 use tokio_stream::StreamExt;
@@ -36,23 +36,17 @@ impl JetstreamBus {
         let client = async_nats::connect(&config.url).await?;
         let context = jetstream::new(client);
 
-        let _ = context
-            .get_stream(&config.stream)
-            .await
-            .or_else(|_| async {
-                context
-                    .create_stream(jetstream::stream::Config {
-                        name: config.stream.clone(),
-                        subjects: vec![config.subject.clone()],
-                        ..Default::default()
-                    })
-                    .await
+        let stream = context
+            .get_or_create_stream(jetstream::stream::Config {
+                name: config.stream.clone(),
+                subjects: vec![config.subject.clone()],
+                ..Default::default()
             })
             .await?;
 
-        let consumer = context
-            .create_consumer(
-                &config.stream,
+        let consumer = stream
+            .get_or_create_consumer(
+                &config.durable,
                 pull::Config {
                     durable_name: Some(config.durable.clone()),
                     ack_policy: AckPolicy::Explicit,
@@ -69,9 +63,7 @@ impl JetstreamBus {
         });
 
         let worker = JetstreamWorker {
-            context,
             consumer,
-            subject: config.subject.clone(),
             pull_batch: config.pull_batch,
         };
 
@@ -91,9 +83,7 @@ impl MessageBus for JetstreamBus {
 }
 
 pub struct JetstreamWorker {
-    context: jetstream::Context,
-    consumer: pull::Consumer<jetstream::context::Context>,
-    subject: String,
+    consumer: PullConsumer,
     pull_batch: usize,
 }
 
@@ -116,7 +106,12 @@ impl JetstreamWorker {
         bus: Arc<JetstreamBus>,
     ) -> anyhow::Result<()> {
         loop {
-            let mut batch = self.consumer.batch().max(self.pull_batch).fetch().await?;
+            let mut batch = self
+                .consumer
+                .batch()
+                .max_messages(self.pull_batch)
+                .messages()
+                .await?;
             while let Some(message) = batch.next().await {
                 match message {
                     Ok(msg) => {
@@ -142,16 +137,22 @@ impl JetstreamWorker {
         let event: OutboundMessageEvent = serde_json::from_slice(&message.payload)?;
         match handler.handle(event.clone()).await {
             Ok(_) => {
-                message.ack().await?;
+                if let Err(e) = message.ack().await {
+                    return Err(anyhow::anyhow!("failed to ack message: {}", e));
+                }
             }
             Err(err) => {
                 if event.attempt >= event.max_attempts {
-                    message.ack().await?;
+                    if let Err(e) = message.ack().await {
+                        return Err(anyhow::anyhow!("failed to ack message: {}", e));
+                    }
                 } else {
                     let mut next = event;
                     next.attempt += 1;
                     bus.publish(next).await?;
-                    message.ack().await?;
+                    if let Err(e) = message.ack().await {
+                        return Err(anyhow::anyhow!("failed to ack message: {}", e));
+                    }
                 }
                 eprintln!("dispatcher error: {err:?}");
             }

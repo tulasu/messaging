@@ -1,4 +1,5 @@
-use poem::error::{BadRequest, InternalServerError};
+use std::sync::Arc;
+
 use poem_openapi::{OpenApi, payload::Json};
 
 use crate::{
@@ -6,7 +7,7 @@ use crate::{
         retry_message::RetryMessageRequest, schedule_message::ScheduleMessageRequest,
     },
     presentation::http::{
-        endpoints::root::{Endpoints, EndpointsTags},
+        endpoints::root::{ApiState, EndpointsTags},
         mappers::map_history,
         requests::{RetryMessageRequestDto, SendMessageRequestDto},
         responses::{MessageHistoryDto, SendMessageResponseDto},
@@ -14,13 +15,23 @@ use crate::{
     },
 };
 
+#[derive(Clone)]
+pub struct MessagesEndpoints {
+    state: Arc<ApiState>,
+}
+
+impl MessagesEndpoints {
+    pub fn new(state: Arc<ApiState>) -> Self {
+        Self { state }
+    }
+}
+
 #[OpenApi]
-impl Endpoints {
+impl MessagesEndpoints {
     #[oai(
         path = "/messages/send",
         method = "post",
         tag = EndpointsTags::Messages,
-        security(("jwt" = [JwtAuth]))
     )]
     pub async fn send_message(
         &self,
@@ -41,7 +52,7 @@ impl Endpoints {
             .schedule_message_usecase
             .execute(payload)
             .await
-            .map_err(|err| InternalServerError(err.to_string()))?;
+            .map_err(internal_error)?;
 
         Ok(Json(SendMessageResponseDto {
             message_id: response.message_id,
@@ -52,7 +63,6 @@ impl Endpoints {
         path = "/messages/history",
         method = "get",
         tag = EndpointsTags::Messages,
-        security(("jwt" = [JwtAuth]))
     )]
     pub async fn list_messages(&self, auth: JwtAuth) -> poem::Result<Json<Vec<MessageHistoryDto>>> {
         let user = auth.into_user(&self.state.jwt_config)?;
@@ -62,7 +72,7 @@ impl Endpoints {
             .list_messages_usecase
             .execute(user.user_id)
             .await
-            .map_err(|err| InternalServerError(err.to_string()))?;
+            .map_err(internal_error)?;
 
         Ok(Json(entries.iter().map(map_history).collect()))
     }
@@ -71,7 +81,6 @@ impl Endpoints {
         path = "/messages/retry",
         method = "post",
         tag = EndpointsTags::Messages,
-        security(("jwt" = [JwtAuth]))
     )]
     pub async fn retry_message(
         &self,
@@ -87,8 +96,19 @@ impl Endpoints {
                 message_id: request.message_id,
             })
             .await
-            .map_err(|err| BadRequest(err.to_string()))?;
+            .map_err(bad_request)?;
 
         Ok(())
     }
+}
+
+fn internal_error(err: anyhow::Error) -> poem::Error {
+    poem::Error::from_string(
+        err.to_string(),
+        poem::http::StatusCode::INTERNAL_SERVER_ERROR,
+    )
+}
+
+fn bad_request(err: anyhow::Error) -> poem::Error {
+    poem::Error::from_string(err.to_string(), poem::http::StatusCode::BAD_REQUEST)
 }
