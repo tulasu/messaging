@@ -2,7 +2,7 @@ use std::io::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
-use poem::{Route, Server, listener::TcpListener};
+use poem::{middleware::CookieJarManager, EndpointExt, Route, Server, listener::TcpListener};
 use poem_openapi::OpenApiService;
 use tokio::main;
 
@@ -149,7 +149,10 @@ async fn main() -> Result<(), Error> {
     let api_service =
         OpenApiService::new(apis, "Messaging API", "0.1.0").server(format!("{}/api", server_url));
     let ui = api_service.swagger_ui();
-    let app = Route::new().nest("/api", api_service).nest("/", ui);
+    let route = Route::new()
+        .nest("/api", api_service)
+        .nest("/", ui);
+    let app = route.with(CookieJarManager::new());
 
     Server::new(TcpListener::bind(format!("0.0.0.0:{}", config.port)))
         .run(app)
