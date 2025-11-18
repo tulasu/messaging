@@ -18,17 +18,13 @@ The compose stack launches PostgreSQL, NATS JetStream and the API container. Def
 
 ### Manual run
 
-1. Copy `docs/env.example` to `.env` and adjust values (database URL, NATS endpoint, JWT secret).
+1. Copy `.env.example` to `.env` and adjust values (database URL, NATS endpoint, JWT secret).
 2. Start PostgreSQL and NATS services that match your configuration.
 3. Run migrations on startup automatically by launching the API:
 
 ```bash
 cargo run
 ```
-
-## New API surface
-
-- `GET /api/messengers/{messenger}/chats` returns chats and conversations fetched from VK/Telegram using the active token registered for the authenticated user.
 
 ## License
 
