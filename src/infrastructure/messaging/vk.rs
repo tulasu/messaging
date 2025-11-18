@@ -59,20 +59,23 @@ impl MessengerClient for VkClient {
             anyhow::anyhow!("invalid vk peer_id format: expected integer, got '{}'", recipient)
         })?;
 
+        let peer_id_str = peer_id.to_string();
+        let random_id_str = chrono::Utc::now().timestamp_millis().to_string();
+        
         let response = self
             .http
-            .post(&url)
+            .get(&url)
             .query(&[
                 ("access_token", token.access_token.as_str()),
                 ("v", self.api_version.as_str()),
-                ("peer_id", &peer_id.to_string()),
+                ("peer_id", &peer_id_str),
                 ("message", &content.body),
-                ("random_id", &chrono::Utc::now().timestamp_millis().to_string()),
+                ("random_id", &random_id_str),
             ])
             .send()
             .await?;
 
-        let payload: VkEnvelope<VkSendResponse> = response.json().await?;
+        let payload: VkEnvelope<i64> = response.json().await?;
 
         if let Some(error) = payload.error {
             anyhow::bail!(
@@ -82,6 +85,8 @@ impl MessengerClient for VkClient {
             );
         }
 
+        // If response is present, message was sent successfully
+        // The response value is the message_id, but we don't need it
         Ok(())
     }
 
@@ -115,6 +120,8 @@ impl MessengerClient for VkClient {
             .query(&query_params)
             .send()
             .await?;
+
+        dbg!(&response);
 
         let payload: VkEnvelope<VkConversationsResponse> = response.json().await?;
 
@@ -259,8 +266,3 @@ struct VkChatSettings {
     title: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct VkSendResponse {
-    #[serde(default)]
-    response: Option<i64>, // message_id
-}
