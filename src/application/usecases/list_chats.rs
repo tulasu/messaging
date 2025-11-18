@@ -3,9 +3,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    application::services::messenger::MessengerGateway,
+    application::services::messenger::{MessengerGateway, PaginatedChats, PaginationParams},
     domain::{
-        models::{MessengerChat, MessengerType},
+        models::MessengerType,
         repositories::MessengerTokenRepository,
     },
 };
@@ -27,7 +27,8 @@ impl ListChatsUseCase {
         &self,
         user_id: Uuid,
         messenger: MessengerType,
-    ) -> anyhow::Result<Vec<MessengerChat>> {
+        pagination: PaginationParams,
+    ) -> anyhow::Result<PaginatedChats> {
         let token = self
             .token_repo
             .find_active(&user_id, messenger)
@@ -39,6 +40,6 @@ impl ListChatsUseCase {
             .get(messenger)
             .ok_or_else(|| anyhow::anyhow!("no client registered for messenger"))?;
 
-        client.list_chats(&token).await
+        client.list_chats(&token, pagination).await
     }
 }

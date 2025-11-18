@@ -1,15 +1,18 @@
 use std::sync::Arc;
 
 use poem::{Error as PoemError, Result as PoemResult, web::cookie::CookieJar};
-use poem_openapi::{OpenApi, param::Path, payload::Json};
+use poem_openapi::{OpenApi, param::{Path, Query}, payload::Json};
 
-use crate::presentation::http::{
-    endpoints::root::{ApiState, EndpointsTags},
-    mappers::map_chat,
-    responses::MessengerChatDto,
-    security::JwtAuth,
+use crate::{
+    application::services::messenger::PaginationParams,
+    presentation::http::{
+        endpoints::root::{ApiState, EndpointsTags},
+        mappers::map_chat,
+        responses::{MessengerChatDto, PaginatedChatsDto},
+        security::JwtAuth,
+    },
+    presentation::models::MessengerKind,
 };
-use crate::presentation::models::MessengerKind;
 
 #[derive(Clone)]
 pub struct ChatsEndpoints {
@@ -33,16 +36,28 @@ impl ChatsEndpoints {
         &self,
         cookie_jar: &CookieJar,
         messenger: Path<MessengerKind>,
-    ) -> PoemResult<Json<Vec<MessengerChatDto>>> {
+        limit: Query<Option<u32>>,
+        offset: Query<Option<u32>>,
+    ) -> PoemResult<Json<PaginatedChatsDto>> {
         let user = JwtAuth::from_cookies(cookie_jar, &self.state.jwt_config)?;
-        let chats = self
+        
+        let pagination = PaginationParams {
+            limit: limit.0,
+            offset: offset.0,
+        };
+        
+        let result = self
             .state
             .list_chats_usecase
-            .execute(user.user_id, messenger.0.into())
+            .execute(user.user_id, messenger.0.into(), pagination)
             .await
             .map_err(bad_request)?;
 
-        Ok(Json(chats.iter().map(map_chat).collect()))
+        Ok(Json(PaginatedChatsDto {
+            chats: result.chats.iter().map(map_chat).collect(),
+            has_more: result.has_more,
+            next_offset: result.next_offset,
+        }))
     }
 }
 

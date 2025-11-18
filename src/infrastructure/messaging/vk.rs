@@ -5,7 +5,7 @@ use reqwest::Client;
 use serde::Deserialize;
 
 use crate::{
-    application::services::messenger::MessengerClient,
+    application::services::messenger::{MessengerClient, PaginatedChats, PaginationParams},
     domain::models::{
         MessageContent, MessengerChat, MessengerChatType, MessengerToken, MessengerType,
     },
@@ -52,23 +52,62 @@ impl MessengerClient for VkClient {
         recipient: &str,
         content: &MessageContent,
     ) -> anyhow::Result<()> {
-        println!(
-            "[vk] sending '{}' to {} using token {}",
-            content.body, recipient, token.id
-        );
-        Ok(())
-    }
+        let url = format!("{}/method/messages.send", self.base_url);
+        
+        let peer_id: i64 = recipient.parse().map_err(|_| {
+            anyhow::anyhow!("invalid vk peer_id format: expected integer, got '{}'", recipient)
+        })?;
 
-    async fn list_chats(&self, token: &MessengerToken) -> anyhow::Result<Vec<MessengerChat>> {
-        let url = format!("{}/method/messages.getConversations", self.base_url);
         let response = self
             .http
-            .get(url)
+            .post(&url)
             .query(&[
                 ("access_token", token.access_token.as_str()),
                 ("v", self.api_version.as_str()),
-                ("count", "50"),
+                ("peer_id", &peer_id.to_string()),
+                ("message", &content.body),
+                ("random_id", &chrono::Utc::now().timestamp_millis().to_string()),
             ])
+            .send()
+            .await?;
+
+        let payload: VkEnvelope<VkSendResponse> = response.json().await?;
+
+        if let Some(error) = payload.error {
+            anyhow::bail!(
+                "vk api error {}: {}",
+                error.error_code,
+                error.error_msg.unwrap_or_else(|| "unknown".to_string())
+            );
+        }
+
+        Ok(())
+    }
+
+    async fn list_chats(
+        &self,
+        token: &MessengerToken,
+        pagination: PaginationParams,
+    ) -> anyhow::Result<PaginatedChats> {
+        let url = format!("{}/method/messages.getConversations", self.base_url);
+        
+        let count = pagination.limit.unwrap_or(50).min(200) as i32;
+        let offset = pagination.offset.unwrap_or(0) as i32;
+
+        let mut query_params = vec![
+            ("access_token", token.access_token.as_str()),
+            ("v", self.api_version.as_str()),
+            ("count", &count.to_string()),
+        ];
+        
+        if offset > 0 {
+            query_params.push(("offset", &offset.to_string()));
+        }
+
+        let response = self
+            .http
+            .get(url)
+            .query(&query_params)
             .send()
             .await?;
 
@@ -112,7 +151,20 @@ impl MessengerClient for VkClient {
             });
         }
 
-        Ok(chats)
+        let total_count = data.count.unwrap_or(0);
+        let current_offset = offset as u32;
+        let has_more = (current_offset + chats.len() as u32) < total_count as u32;
+        let next_offset = if has_more {
+            Some(current_offset + chats.len() as u32)
+        } else {
+            None
+        };
+
+        Ok(PaginatedChats {
+            chats,
+            has_more,
+            next_offset,
+        })
     }
 }
 
@@ -130,6 +182,7 @@ struct VkError {
 
 #[derive(Debug, Deserialize)]
 struct VkConversationsResponse {
+    count: Option<i32>,
     items: Vec<VkConversationItem>,
 }
 
@@ -162,4 +215,10 @@ struct VkCanWrite {
 #[derive(Debug, Deserialize)]
 struct VkChatSettings {
     title: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct VkSendResponse {
+    #[serde(default)]
+    response: Option<i64>, // message_id
 }

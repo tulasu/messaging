@@ -6,7 +6,7 @@ use reqwest::Client;
 use serde::Deserialize;
 
 use crate::{
-    application::services::messenger::MessengerClient,
+    application::services::messenger::{MessengerClient, PaginatedChats, PaginationParams},
     domain::models::{
         MessageContent, MessengerChat, MessengerChatType, MessengerToken, MessengerType,
     },
@@ -88,22 +88,61 @@ impl MessengerClient for TelegramClient {
         recipient: &str,
         content: &MessageContent,
     ) -> anyhow::Result<()> {
-        println!(
-            "[telegram] sending '{}' to {} using token {}",
-            content.body, recipient, token.id
-        );
+        let url = self.build_url(token, "sendMessage");
+        
+        let chat_id: i64 = recipient.parse().map_err(|_| {
+            anyhow::anyhow!("invalid telegram chat_id format: expected integer, got '{}'", recipient)
+        })?;
+
+        let request_body = serde_json::json!({
+            "chat_id": chat_id,
+            "text": content.body,
+        });
+
+        let response = self
+            .http
+            .post(&url)
+            .json(&request_body)
+            .send()
+            .await?;
+
+        let payload: TelegramApiResponse<TelegramMessageResponse> = response.json().await?;
+        
+        if !payload.ok {
+            anyhow::bail!(
+                "telegram api error: {}",
+                payload
+                    .description
+                    .unwrap_or_else(|| "unknown error".to_string())
+            );
+        }
+
         Ok(())
     }
 
-    async fn list_chats(&self, token: &MessengerToken) -> anyhow::Result<Vec<MessengerChat>> {
+    async fn list_chats(
+        &self,
+        token: &MessengerToken,
+        pagination: PaginationParams,
+    ) -> anyhow::Result<PaginatedChats> {
         let url = self.build_url(token, "getUpdates");
+        
+        let limit = pagination.limit.unwrap_or(100).min(100) as i32;
+        let offset = pagination.offset.unwrap_or(0) as i32;
+
+        let mut query_params = vec![
+            ("allowed_updates", r#"["message","channel_post","chat_member"]"#),
+            ("limit", &limit.to_string()),
+        ];
+        
+        if offset > 0 {
+            query_params.push(("offset", &offset.to_string()));
+        }
+
         let response = self
             .http
             .get(url)
-            .query(&[(
-                "allowed_updates",
-                r#"["message","channel_post","chat_member"]"#,
-            )])
+            .query(&query_params)
             .send()
             .await?;
 
@@ -136,8 +175,28 @@ impl MessengerClient for TelegramClient {
             }
         }
 
-        Ok(chats.into_values().collect())
+        let chats_vec: Vec<MessengerChat> = chats.into_values().collect();
+        let has_more = chats_vec.len() >= limit as usize;
+        let next_offset = if has_more {
+            Some(offset as u32 + chats_vec.len() as u32)
+        } else {
+            None
+        };
+
+        Ok(PaginatedChats {
+            chats: chats_vec,
+            has_more,
+            next_offset,
+        })
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct TelegramApiResponse<T> {
+    ok: bool,
+    description: Option<String>,
+    #[serde(default)]
+    result: Option<T>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -146,6 +205,11 @@ struct TelegramUpdatesResponse {
     description: Option<String>,
     #[serde(default)]
     result: Vec<TelegramUpdate>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TelegramMessageResponse {
+    message_id: i64,
 }
 
 #[derive(Debug, Deserialize)]

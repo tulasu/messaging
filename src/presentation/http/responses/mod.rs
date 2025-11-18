@@ -49,3 +49,10 @@ pub struct MessengerChatDto {
     pub chat_type: ChatTypeKind,
     pub can_send_messages: bool,
 }
+
+#[derive(Object)]
+pub struct PaginatedChatsDto {
+    pub chats: Vec<MessengerChatDto>,
+    pub has_more: bool,
+    pub next_offset: Option<u32>,
+}
