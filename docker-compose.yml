@@ -1,5 +1,6 @@
 services:
   postgres:
+    container_name: messaging_postgres
     image: postgres:16
     environment:
       POSTGRES_DB: messaging
@@ -16,6 +17,7 @@ services:
       retries: 5
 
   nats:
+    container_name: messaging_nats
     image: nats:2.10
     command: ["-js"]
     ports:
@@ -23,6 +25,7 @@ services:
       - "8222:8222"
 
   api:
+    container_name: messaging_service
     build: .
     depends_on:
       postgres:
