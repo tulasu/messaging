@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use crate::domain::models::{
-    MessageContent, MessageHistoryEntry, MessageStatus, MessengerToken, MessengerType, RequestedBy,
+    MessageAttempt, MessageContent, MessageHistoryEntry, MessageStatus, MessengerToken, MessengerType, RequestedBy,
     User,
 };
 
@@ -44,5 +44,20 @@ pub trait MessageHistoryRepository: Send + Sync {
 
     async fn get(&self, message_id: Uuid) -> anyhow::Result<Option<MessageHistoryEntry>>;
 
-    async fn list_by_user(&self, user_id: Uuid) -> anyhow::Result<Vec<MessageHistoryEntry>>;
+    async fn list_by_user(
+        &self,
+        user_id: Uuid,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> anyhow::Result<(Vec<MessageHistoryEntry>, bool)>;
+
+    async fn log_attempt(
+        &self,
+        message_id: Uuid,
+        attempt_number: u32,
+        status: MessageStatus,
+        requested_by: RequestedBy,
+    ) -> anyhow::Result<()>;
+
+    async fn get_attempts(&self, message_id: Uuid) -> anyhow::Result<Vec<MessageAttempt>>;
 }

@@ -1,12 +1,12 @@
 use crate::{
     domain::models::{
-        MessageHistoryEntry, MessageStatus, MessengerChat, MessengerToken, MessengerTokenStatus,
+        MessageAttempt, MessageHistoryEntry, MessageStatus, MessengerChat, MessengerToken, MessengerTokenStatus,
     },
     presentation::{
         http::responses::{
-            MessageHistoryDto, MessengerChatDto, MessengerTokenDto, MessengerTokenStatusDto,
+            MessageAttemptDto, MessageHistoryDto, MessengerChatDto, MessengerTokenDto, MessengerTokenStatusDto,
         },
-        models::{ChatTypeKind, MessageStatusDto},
+        models::{ChatTypeKind, MessageStatusDto, RequestedByKind},
     },
 };
 
@@ -52,5 +52,17 @@ pub fn map_chat(chat: &MessengerChat) -> MessengerChatDto {
         title: chat.title.clone(),
         chat_type: ChatTypeKind::from(chat.chat_type.clone()),
         can_send_messages: chat.can_send_messages,
+    }
+}
+
+pub fn map_attempt(attempt: &MessageAttempt) -> MessageAttemptDto {
+    MessageAttemptDto {
+        id: attempt.id,
+        message_id: attempt.message_id,
+        attempt_number: attempt.attempt_number,
+        status: MessageStatusDto::from(&attempt.status),
+        status_reason: extract_error(&attempt.status),
+        requested_by: RequestedByKind::from(attempt.requested_by.clone()),
+        created_at: attempt.created_at.to_rfc3339(),
     }
 }

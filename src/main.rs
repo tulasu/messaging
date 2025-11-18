@@ -12,6 +12,7 @@ use crate::{
         services::{event_bus::MessageBus, jwt::JwtServiceConfig, messenger::MessengerGateway},
         usecases::{
             authenticate_user::AuthenticateUserUseCase,
+            get_message_attempts::GetMessageAttemptsUseCase,
             list_chats::ListChatsUseCase,
             list_messages::ListMessagesUseCase,
             list_tokens::ListTokensUseCase,
@@ -115,6 +116,7 @@ async fn main() -> Result<(), Error> {
         history_repo.clone(),
         schedule_message_usecase.clone(),
     ));
+    let get_message_attempts_usecase = Arc::new(GetMessageAttemptsUseCase::new(history_repo.clone()));
 
     let dispatcher = Arc::new(MessageDispatchHandler::new(
         token_repo,
@@ -131,6 +133,7 @@ async fn main() -> Result<(), Error> {
         schedule_message_usecase,
         list_messages_usecase,
         retry_message_usecase,
+        get_message_attempts_usecase,
         jwt_config,
     });
 

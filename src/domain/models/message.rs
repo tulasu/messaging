@@ -45,3 +45,13 @@ pub enum RequestedBy {
     System,
     User,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageAttempt {
+    pub id: Uuid,
+    pub message_id: Uuid,
+    pub attempt_number: u32,
+    pub status: MessageStatus,
+    pub requested_by: RequestedBy,
+    pub created_at: DateTime<Utc>,
+}

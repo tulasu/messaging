@@ -56,3 +56,21 @@ pub struct PaginatedChatsDto {
     pub has_more: bool,
     pub next_offset: Option<u32>,
 }
+
+#[derive(Object)]
+pub struct PaginatedMessagesDto {
+    pub messages: Vec<MessageHistoryDto>,
+    pub has_more: bool,
+    pub next_offset: Option<u32>,
+}
+
+#[derive(Object)]
+pub struct MessageAttemptDto {
+    pub id: Uuid,
+    pub message_id: Uuid,
+    pub attempt_number: u32,
+    pub status: MessageStatusDto,
+    pub status_reason: Option<String>,
+    pub requested_by: RequestedByKind,
+    pub created_at: String,
+}

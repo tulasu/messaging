@@ -1,17 +1,18 @@
 use std::sync::Arc;
 
 use poem::{Result as PoemResult, web::cookie::CookieJar};
-use poem_openapi::{OpenApi, payload::Json};
+use poem_openapi::{OpenApi, param::Query, payload::Json};
 
 use crate::{
     application::usecases::{
-        retry_message::RetryMessageRequest, schedule_message::ScheduleMessageRequest,
+        retry_message::RetryMessageRequest,
+        schedule_message::ScheduleMessageRequest,
     },
     presentation::http::{
         endpoints::root::{ApiState, EndpointsTags},
-        mappers::map_history,
+        mappers::{map_attempt, map_history},
         requests::{RetryMessageRequestDto, SendMessageRequestDto},
-        responses::{MessageHistoryDto, SendMessageResponseDto},
+        responses::{MessageAttemptDto, PaginatedMessagesDto, SendMessageResponseDto},
         security::JwtAuth,
     },
 };
@@ -30,7 +31,7 @@ impl MessagesEndpoints {
 #[OpenApi]
 impl MessagesEndpoints {
     #[oai(
-        path = "/messages/send",
+        path = "/messages",
         method = "post",
         tag = EndpointsTags::Messages,
     )]
@@ -61,28 +62,64 @@ impl MessagesEndpoints {
     }
 
     #[oai(
-        path = "/messages/history",
+        path = "/messages",
         method = "get",
         tag = EndpointsTags::Messages,
     )]
     pub async fn list_messages(
         &self,
         cookie_jar: &CookieJar,
-    ) -> PoemResult<Json<Vec<MessageHistoryDto>>> {
+        limit: Query<Option<u32>>,
+        offset: Query<Option<u32>>,
+    ) -> PoemResult<Json<PaginatedMessagesDto>> {
         let user = JwtAuth::from_cookies(cookie_jar, &self.state.jwt_config)?;
 
-        let entries = self
+        let result = self
             .state
             .list_messages_usecase
-            .execute(user.user_id)
+            .execute(user.user_id, limit.0, offset.0)
             .await
             .map_err(internal_error)?;
 
-        Ok(Json(entries.iter().map(map_history).collect()))
+        Ok(Json(PaginatedMessagesDto {
+            messages: result.messages.iter().map(map_history).collect(),
+            has_more: result.has_more,
+            next_offset: result.next_offset,
+        }))
     }
 
     #[oai(
-        path = "/messages/retry",
+        path = "/messages/:message_id/attempts",
+        method = "get",
+        tag = EndpointsTags::Messages,
+    )]
+    pub async fn get_message_attempts(
+        &self,
+        cookie_jar: &CookieJar,
+        message_id: poem_openapi::param::Path<uuid::Uuid>,
+    ) -> PoemResult<Json<Vec<MessageAttemptDto>>> {
+        let user = JwtAuth::from_cookies(cookie_jar, &self.state.jwt_config)?;
+
+        let attempts = self
+            .state
+            .get_message_attempts_usecase
+            .execute(message_id.0, user.user_id)
+            .await
+            .map_err(|e| {
+                if e.to_string().contains("forbidden") {
+                    poem::Error::from_string("forbidden", poem::http::StatusCode::FORBIDDEN)
+                } else if e.to_string().contains("not found") {
+                    poem::Error::from_string("message not found", poem::http::StatusCode::NOT_FOUND)
+                } else {
+                    internal_error(e)
+                }
+            })?;
+
+        Ok(Json(attempts.iter().map(map_attempt).collect()))
+    }
+
+    #[oai(
+        path = "/messages/actions/retry",
         method = "post",
         tag = EndpointsTags::Messages,
     )]

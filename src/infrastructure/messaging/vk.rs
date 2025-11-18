@@ -121,8 +121,6 @@ impl MessengerClient for VkClient {
             .send()
             .await?;
 
-        dbg!(&response);
-
         let payload: VkEnvelope<VkConversationsResponse> = response.json().await?;
 
         if let Some(error) = payload.error {

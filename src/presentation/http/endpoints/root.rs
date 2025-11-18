@@ -4,10 +4,10 @@ use poem_openapi::Tags;
 
 use crate::application::services::jwt::JwtServiceConfig;
 use crate::application::usecases::{
-    authenticate_user::AuthenticateUserUseCase, list_chats::ListChatsUseCase,
-    list_messages::ListMessagesUseCase, list_tokens::ListTokensUseCase,
-    register_token::RegisterTokenUseCase, retry_message::RetryMessageUseCase,
-    schedule_message::ScheduleMessageUseCase,
+    authenticate_user::AuthenticateUserUseCase, get_message_attempts::GetMessageAttemptsUseCase,
+    list_chats::ListChatsUseCase, list_messages::ListMessagesUseCase,
+    list_tokens::ListTokensUseCase, register_token::RegisterTokenUseCase,
+    retry_message::RetryMessageUseCase, schedule_message::ScheduleMessageUseCase,
 };
 
 #[derive(Clone)]
@@ -19,6 +19,7 @@ pub struct ApiState {
     pub schedule_message_usecase: Arc<ScheduleMessageUseCase>,
     pub list_messages_usecase: Arc<ListMessagesUseCase>,
     pub retry_message_usecase: Arc<RetryMessageUseCase>,
+    pub get_message_attempts_usecase: Arc<GetMessageAttemptsUseCase>,
     pub jwt_config: JwtServiceConfig,
 }
 

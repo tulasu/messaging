@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::domain::{
     models::{
-        MessageContent, MessageHistoryEntry, MessageStatus, MessageType, MessengerToken,
+        MessageAttempt, MessageContent, MessageHistoryEntry, MessageStatus, MessageType, MessengerToken,
         MessengerTokenStatus, MessengerType, RequestedBy, User,
     },
     repositories::{MessageHistoryRepository, MessengerTokenRepository, UserRepository},
@@ -264,21 +264,97 @@ impl MessageHistoryRepository for PostgresMessageHistoryRepository {
         row.map(MessageHistoryEntry::try_from).transpose()
     }
 
-    async fn list_by_user(&self, user_id: Uuid) -> anyhow::Result<Vec<MessageHistoryEntry>> {
+    async fn list_by_user(
+        &self,
+        user_id: Uuid,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> anyhow::Result<(Vec<MessageHistoryEntry>, bool)> {
+        let limit = limit.unwrap_or(50).min(200) as i32;
+        let offset = offset.unwrap_or(0) as i32;
+
+        // Get one extra to check if there are more
         let rows = sqlx::query(
             r#"
             SELECT *
             FROM message_history
             WHERE user_id = $1
             ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
             "#,
         )
         .bind(user_id)
+        .bind(limit + 1)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let has_more = rows.len() > limit as usize;
+        let entries: Vec<MessageHistoryEntry> = rows
+            .into_iter()
+            .take(limit as usize)
+            .map(MessageHistoryEntry::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok((entries, has_more))
+    }
+
+    async fn log_attempt(
+        &self,
+        message_id: Uuid,
+        attempt_number: u32,
+        status: MessageStatus,
+        requested_by: RequestedBy,
+    ) -> anyhow::Result<()> {
+        let (status_str, reason) = message_status_to_fields(&status);
+        sqlx::query(
+            r#"
+            INSERT INTO message_attempts (
+                id, message_id, attempt_number, status, status_reason, requested_by, created_at
+            )
+            VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NOW())
+            "#,
+        )
+        .bind(message_id)
+        .bind(attempt_number as i32)
+        .bind(status_str)
+        .bind(reason)
+        .bind(requested_by_to_str(&requested_by))
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn get_attempts(&self, message_id: Uuid) -> anyhow::Result<Vec<MessageAttempt>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, message_id, attempt_number, status, status_reason, requested_by, created_at
+            FROM message_attempts
+            WHERE message_id = $1
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(message_id)
         .fetch_all(&self.pool)
         .await?;
 
         rows.into_iter()
-            .map(MessageHistoryEntry::try_from)
+            .map(|row| {
+                let status_str: String = row.get("status");
+                let reason: Option<String> = row.get("status_reason");
+                let status = message_status_from_str(&status_str, reason)?;
+                let requested_by_str: String = row.get("requested_by");
+                let requested_by = requested_by_from_str(&requested_by_str)?;
+
+                Ok(MessageAttempt {
+                    id: row.get("id"),
+                    message_id: row.get("message_id"),
+                    attempt_number: row.get::<i32, _>("attempt_number") as u32,
+                    status,
+                    requested_by,
+                    created_at: row.get("created_at"),
+                })
+            })
             .collect()
     }
 }
@@ -409,6 +485,10 @@ fn str_to_requested_by(value: &str) -> anyhow::Result<RequestedBy> {
     }
 }
 
+fn requested_by_from_str(value: &str) -> anyhow::Result<RequestedBy> {
+    str_to_requested_by(value)
+}
+
 fn message_status_to_fields(status: &MessageStatus) -> (&'static str, Option<String>) {
     match status {
         MessageStatus::Pending => ("pending", None),
@@ -442,4 +522,9 @@ fn message_status_from_fields(
         "cancelled" => MessageStatus::Cancelled,
         other => anyhow::bail!("unknown message status {other}"),
     })
+}
+
+fn message_status_from_str(status: &str, reason: Option<String>) -> anyhow::Result<MessageStatus> {
+    // For attempts, we use 0 as default since we don't store attempts in message_attempts table
+    message_status_from_fields(status, reason, 0)
 }
