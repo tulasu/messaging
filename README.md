@@ -6,6 +6,10 @@
 
 A Rust application for sending messages across multiple messaging platforms including VK, Telegram and MAX.
 
+## Documentation
+
+- [Getting API Tokens](./docs/tokens.md) - Guide on how to obtain access tokens for messengers
+
 ## Running locally
 
 ### Docker Compose

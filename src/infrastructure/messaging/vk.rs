@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -101,6 +102,7 @@ impl MessengerClient for VkClient {
             ("access_token", token.access_token.as_str()),
             ("v", self.api_version.as_str()),
             ("count", &count_str),
+            ("extended", "1"), // Get extended info including user profiles
         ];
         
         if offset > 0 {
@@ -129,15 +131,41 @@ impl MessengerClient for VkClient {
             .ok_or_else(|| anyhow::anyhow!("vk: empty response body"))?;
 
         let mut chats = Vec::with_capacity(data.items.len());
+        
+        let users_map: HashMap<i64, &VkUser> = data
+            .profiles
+            .iter()
+            .map(|u| (u.id, u))
+            .collect();
+        
         for item in data.items {
             let peer = item.conversation.peer;
             let chat_type = Self::chat_type(peer.peer_type.as_str());
-            let title = item
-                .conversation
-                .chat_settings
-                .as_ref()
-                .and_then(|settings| settings.title.clone())
-                .unwrap_or_else(|| format!("peer {}", peer.id));
+            
+            let title = match chat_type {
+                MessengerChatType::Direct => {
+                    users_map
+                        .get(&peer.id)
+                        .map(|user| {
+                            format!(
+                                "{} {}",
+                                user.first_name.as_deref().unwrap_or(""),
+                                user.last_name.as_deref().unwrap_or("")
+                            )
+                            .trim()
+                            .to_string()
+                        })
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or_else(|| format!("User {}", peer.id))
+                }
+                _ => {
+                    item.conversation
+                        .chat_settings
+                        .as_ref()
+                        .and_then(|settings| settings.title.clone())
+                        .unwrap_or_else(|| format!("Chat {}", peer.id))
+                }
+            };
 
             let can_send = item
                 .conversation
@@ -187,6 +215,17 @@ struct VkError {
 struct VkConversationsResponse {
     count: Option<i32>,
     items: Vec<VkConversationItem>,
+    #[serde(default)]
+    profiles: Vec<VkUser>,
+}
+
+#[derive(Debug, Deserialize)]
+struct VkUser {
+    id: i64,
+    #[serde(rename = "first_name")]
+    first_name: Option<String>,
+    #[serde(rename = "last_name")]
+    last_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
