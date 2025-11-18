@@ -130,13 +130,16 @@ impl MessengerClient for TelegramClient {
         let limit = pagination.limit.unwrap_or(100).min(100) as i32;
         let offset = pagination.offset.unwrap_or(0) as i32;
 
-        let mut query_params = vec![
+        let limit_str = limit.to_string();
+        let offset_str = offset.to_string();
+        
+        let mut query_params: Vec<(&str, &str)> = vec![
             ("allowed_updates", r#"["message","channel_post","chat_member"]"#),
-            ("limit", &limit.to_string()),
+            ("limit", &limit_str),
         ];
         
         if offset > 0 {
-            query_params.push(("offset", &offset.to_string()));
+            query_params.push(("offset", &offset_str));
         }
 
         let response = self
@@ -207,7 +210,7 @@ struct TelegramUpdatesResponse {
     result: Vec<TelegramUpdate>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 struct TelegramMessageResponse {
     message_id: i64,
 }

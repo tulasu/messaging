@@ -8,7 +8,7 @@ use crate::{
     presentation::http::{
         endpoints::root::{ApiState, EndpointsTags},
         mappers::map_chat,
-        responses::{MessengerChatDto, PaginatedChatsDto},
+        responses::PaginatedChatsDto,
         security::JwtAuth,
     },
     presentation::models::MessengerKind,

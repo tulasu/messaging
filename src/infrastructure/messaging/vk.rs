@@ -94,14 +94,17 @@ impl MessengerClient for VkClient {
         let count = pagination.limit.unwrap_or(50).min(200) as i32;
         let offset = pagination.offset.unwrap_or(0) as i32;
 
-        let mut query_params = vec![
+        let count_str = count.to_string();
+        let offset_str = offset.to_string();
+        
+        let mut query_params: Vec<(&str, &str)> = vec![
             ("access_token", token.access_token.as_str()),
             ("v", self.api_version.as_str()),
-            ("count", &count.to_string()),
+            ("count", &count_str),
         ];
         
         if offset > 0 {
-            query_params.push(("offset", &offset.to_string()));
+            query_params.push(("offset", &offset_str));
         }
 
         let response = self
