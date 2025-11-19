@@ -6,6 +6,7 @@ pub struct Config {
     pub port: u16,
     pub scheme: String,
     pub host: String,
+    pub cors_allowed_origins: Vec<String>,
     pub database_url: String,
     pub database_max_connections: u32,
     pub jwt_secret: String,
@@ -31,6 +32,7 @@ impl Config {
                 .map_err(|_| "invalid PORT")?,
             scheme: read_var("SCHEME")?,
             host: read_var("HOST")?,
+            cors_allowed_origins: read_list_var("CORS_ALLOWED_ORIGINS"),
             database_url: read_var("DATABASE_URL")?,
             database_max_connections: read_var_or_default("DATABASE_MAX_CONNECTIONS", "8")
                 .parse::<u32>()
@@ -68,4 +70,16 @@ fn read_var(name: &str) -> Result<String, &'static str> {
 
 fn read_var_or_default(name: &str, default: &str) -> String {
     var(name).unwrap_or_else(|_| default.to_string())
+}
+
+fn read_list_var(name: &str) -> Vec<String> {
+    match var(name) {
+        Ok(value) => value
+            .split(',')
+            .map(|item| item.trim())
+            .filter(|item| !item.is_empty())
+            .map(|item| item.to_string())
+            .collect(),
+        Err(_) => Vec::new(),
+    }
 }

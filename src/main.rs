@@ -2,7 +2,11 @@ use std::io::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
-use poem::{EndpointExt, Route, Server, listener::TcpListener, middleware::CookieJarManager};
+use poem::{
+    EndpointExt, Route, Server,
+    listener::TcpListener,
+    middleware::{CookieJarManager, Cors},
+};
 use poem_openapi::OpenApiService;
 use tokio::main;
 
@@ -154,7 +158,27 @@ async fn main() -> Result<(), Error> {
         OpenApiService::new(apis, "Messaging API", "0.1.0").server(format!("{}/api", server_url));
     let ui = api_service.swagger_ui();
     let route = Route::new().nest("/api", api_service).nest("/", ui);
-    let app = route.with(CookieJarManager::new());
+
+    let cors = if config.cors_allowed_origins.is_empty() {
+        Cors::new()
+            .allow_credentials(true)
+            .allow_methods(vec!["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+            .allow_headers(vec!["authorization", "content-type"])
+            .allow_origins_fn(|_| true)
+    } else {
+        let mut cors = Cors::new()
+            .allow_credentials(true)
+            .allow_methods(vec!["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+            .allow_headers(vec!["authorization", "content-type"]);
+
+        for origin in &config.cors_allowed_origins {
+            cors = cors.allow_origin(origin.clone());
+        }
+        
+        cors
+    };
+
+    let app = route.with(cors).with(CookieJarManager::new());
 
     Server::new(TcpListener::bind(format!("0.0.0.0:{}", config.port)))
         .run(app)
