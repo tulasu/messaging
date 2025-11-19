@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::domain::{
     models::{
-        MessageAttempt, MessageContent, MessageHistoryEntry, MessageStatus, MessageType, MessengerToken,
-        MessengerTokenStatus, MessengerType, RequestedBy, User,
+        MessageAttempt, MessageContent, MessageHistoryEntry, MessageStatus, MessageType,
+        MessengerToken, MessengerTokenStatus, MessengerType, RequestedBy, User,
     },
     repositories::{MessageHistoryRepository, MessengerTokenRepository, UserRepository},
 };

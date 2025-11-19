@@ -67,7 +67,12 @@ impl MessageDispatchHandler {
         // Log attempt start (InFlight status)
         let in_flight_status = MessageStatus::InFlight;
         self.history_repo
-            .log_attempt(event.message_id, event.attempt, in_flight_status, requested_by.clone())
+            .log_attempt(
+                event.message_id,
+                event.attempt,
+                in_flight_status,
+                requested_by.clone(),
+            )
             .await?;
 
         if let Err(err) = client.send(&token, &event.recipient, &event.content).await {

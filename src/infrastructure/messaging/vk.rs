@@ -54,14 +54,17 @@ impl MessengerClient for VkClient {
         content: &MessageContent,
     ) -> anyhow::Result<()> {
         let url = format!("{}/method/messages.send", self.base_url);
-        
+
         let peer_id: i64 = recipient.parse().map_err(|_| {
-            anyhow::anyhow!("invalid vk peer_id format: expected integer, got '{}'", recipient)
+            anyhow::anyhow!(
+                "invalid vk peer_id format: expected integer, got '{}'",
+                recipient
+            )
         })?;
 
         let peer_id_str = peer_id.to_string();
         let random_id_str = chrono::Utc::now().timestamp_millis().to_string();
-        
+
         let response = self
             .http
             .get(&url)
@@ -96,30 +99,25 @@ impl MessengerClient for VkClient {
         pagination: PaginationParams,
     ) -> anyhow::Result<PaginatedChats> {
         let url = format!("{}/method/messages.getConversations", self.base_url);
-        
+
         let count = pagination.limit.unwrap_or(50).min(200) as i32;
         let offset = pagination.offset.unwrap_or(0) as i32;
 
         let count_str = count.to_string();
         let offset_str = offset.to_string();
-        
+
         let mut query_params: Vec<(&str, &str)> = vec![
             ("access_token", token.access_token.as_str()),
             ("v", self.api_version.as_str()),
             ("count", &count_str),
             ("extended", "1"), // Get extended info including user profiles
         ];
-        
+
         if offset > 0 {
             query_params.push(("offset", &offset_str));
         }
 
-        let response = self
-            .http
-            .get(url)
-            .query(&query_params)
-            .send()
-            .await?;
+        let response = self.http.get(url).query(&query_params).send().await?;
 
         let payload: VkEnvelope<VkConversationsResponse> = response.json().await?;
 
@@ -136,40 +134,33 @@ impl MessengerClient for VkClient {
             .ok_or_else(|| anyhow::anyhow!("vk: empty response body"))?;
 
         let mut chats = Vec::with_capacity(data.items.len());
-        
-        let users_map: HashMap<i64, &VkUser> = data
-            .profiles
-            .iter()
-            .map(|u| (u.id, u))
-            .collect();
-        
+
+        let users_map: HashMap<i64, &VkUser> = data.profiles.iter().map(|u| (u.id, u)).collect();
+
         for item in data.items {
             let peer = item.conversation.peer;
             let chat_type = Self::chat_type(peer.peer_type.as_str());
-            
+
             let title = match chat_type {
-                MessengerChatType::Direct => {
-                    users_map
-                        .get(&peer.id)
-                        .map(|user| {
-                            format!(
-                                "{} {}",
-                                user.first_name.as_deref().unwrap_or(""),
-                                user.last_name.as_deref().unwrap_or("")
-                            )
-                            .trim()
-                            .to_string()
-                        })
-                        .filter(|s| !s.is_empty())
-                        .unwrap_or_else(|| format!("User {}", peer.id))
-                }
-                _ => {
-                    item.conversation
-                        .chat_settings
-                        .as_ref()
-                        .and_then(|settings| settings.title.clone())
-                        .unwrap_or_else(|| format!("Chat {}", peer.id))
-                }
+                MessengerChatType::Direct => users_map
+                    .get(&peer.id)
+                    .map(|user| {
+                        format!(
+                            "{} {}",
+                            user.first_name.as_deref().unwrap_or(""),
+                            user.last_name.as_deref().unwrap_or("")
+                        )
+                        .trim()
+                        .to_string()
+                    })
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| format!("User {}", peer.id)),
+                _ => item
+                    .conversation
+                    .chat_settings
+                    .as_ref()
+                    .and_then(|settings| settings.title.clone())
+                    .unwrap_or_else(|| format!("Chat {}", peer.id)),
             };
 
             let can_send = item
@@ -263,4 +254,3 @@ struct VkCanWrite {
 struct VkChatSettings {
     title: Option<String>,
 }
-

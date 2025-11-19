@@ -89,9 +89,12 @@ impl MessengerClient for TelegramClient {
         content: &MessageContent,
     ) -> anyhow::Result<()> {
         let url = self.build_url(token, "sendMessage");
-        
+
         let chat_id: i64 = recipient.parse().map_err(|_| {
-            anyhow::anyhow!("invalid telegram chat_id format: expected integer, got '{}'", recipient)
+            anyhow::anyhow!(
+                "invalid telegram chat_id format: expected integer, got '{}'",
+                recipient
+            )
         })?;
 
         let request_body = serde_json::json!({
@@ -99,15 +102,10 @@ impl MessengerClient for TelegramClient {
             "text": content.body,
         });
 
-        let response = self
-            .http
-            .post(&url)
-            .json(&request_body)
-            .send()
-            .await?;
+        let response = self.http.post(&url).json(&request_body).send().await?;
 
         let payload: TelegramApiResponse<TelegramMessageResponse> = response.json().await?;
-        
+
         if !payload.ok {
             anyhow::bail!(
                 "telegram api error: {}",
@@ -126,28 +124,26 @@ impl MessengerClient for TelegramClient {
         pagination: PaginationParams,
     ) -> anyhow::Result<PaginatedChats> {
         let url = self.build_url(token, "getUpdates");
-        
+
         let limit = pagination.limit.unwrap_or(100).min(100) as i32;
         let offset = pagination.offset.unwrap_or(0) as i32;
 
         let limit_str = limit.to_string();
         let offset_str = offset.to_string();
-        
+
         let mut query_params: Vec<(&str, &str)> = vec![
-            ("allowed_updates", r#"["message","channel_post","chat_member"]"#),
+            (
+                "allowed_updates",
+                r#"["message","channel_post","chat_member"]"#,
+            ),
             ("limit", &limit_str),
         ];
-        
+
         if offset > 0 {
             query_params.push(("offset", &offset_str));
         }
 
-        let response = self
-            .http
-            .get(url)
-            .query(&query_params)
-            .send()
-            .await?;
+        let response = self.http.get(url).query(&query_params).send().await?;
 
         let payload: TelegramUpdatesResponse = response.json().await?;
         if !payload.ok {

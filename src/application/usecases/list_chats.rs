@@ -4,10 +4,7 @@ use uuid::Uuid;
 
 use crate::{
     application::services::messenger::{MessengerGateway, PaginatedChats, PaginationParams},
-    domain::{
-        models::MessengerType,
-        repositories::MessengerTokenRepository,
-    },
+    domain::{models::MessengerType, repositories::MessengerTokenRepository},
 };
 
 pub struct ListChatsUseCase {

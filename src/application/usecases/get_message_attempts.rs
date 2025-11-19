@@ -32,4 +32,3 @@ impl GetMessageAttemptsUseCase {
         self.repo.get_attempts(message_id).await
     }
 }
-

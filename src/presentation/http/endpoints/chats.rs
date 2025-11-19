@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use poem::{Error as PoemError, Result as PoemResult, web::cookie::CookieJar};
-use poem_openapi::{OpenApi, param::{Path, Query}, payload::Json};
+use poem_openapi::{
+    OpenApi,
+    param::{Path, Query},
+    payload::Json,
+};
 
 use crate::{
     application::services::messenger::PaginationParams,
@@ -40,12 +44,12 @@ impl ChatsEndpoints {
         offset: Query<Option<u32>>,
     ) -> PoemResult<Json<PaginatedChatsDto>> {
         let user = JwtAuth::from_cookies(cookie_jar, &self.state.jwt_config)?;
-        
+
         let pagination = PaginationParams {
             limit: limit.0,
             offset: offset.0,
         };
-        
+
         let result = self
             .state
             .list_chats_usecase

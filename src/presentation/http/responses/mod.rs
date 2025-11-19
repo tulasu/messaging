@@ -74,3 +74,19 @@ pub struct MessageAttemptDto {
     pub requested_by: RequestedByKind,
     pub created_at: String,
 }
+
+#[derive(Object)]
+pub struct BatchSendItemResultDto {
+    pub index: u32,
+    pub success: bool,
+    pub message_id: Option<Uuid>,
+    pub error: Option<String>,
+}
+
+#[derive(Object)]
+pub struct BatchSendResponseDto {
+    pub results: Vec<BatchSendItemResultDto>,
+    pub total: u32,
+    pub successful: u32,
+    pub failed: u32,
+}

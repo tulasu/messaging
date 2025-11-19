@@ -32,3 +32,8 @@ pub struct SendMessageRequestDto {
 pub struct RetryMessageRequestDto {
     pub message_id: Uuid,
 }
+
+#[derive(Object, Debug)]
+pub struct BatchSendRequestDto {
+    pub messages: Vec<SendMessageRequestDto>,
+}

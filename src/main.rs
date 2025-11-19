@@ -2,7 +2,7 @@ use std::io::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
-use poem::{middleware::CookieJarManager, EndpointExt, Route, Server, listener::TcpListener};
+use poem::{EndpointExt, Route, Server, listener::TcpListener, middleware::CookieJarManager};
 use poem_openapi::OpenApiService;
 use tokio::main;
 
@@ -116,7 +116,8 @@ async fn main() -> Result<(), Error> {
         history_repo.clone(),
         schedule_message_usecase.clone(),
     ));
-    let get_message_attempts_usecase = Arc::new(GetMessageAttemptsUseCase::new(history_repo.clone()));
+    let get_message_attempts_usecase =
+        Arc::new(GetMessageAttemptsUseCase::new(history_repo.clone()));
 
     let dispatcher = Arc::new(MessageDispatchHandler::new(
         token_repo,
@@ -152,9 +153,7 @@ async fn main() -> Result<(), Error> {
     let api_service =
         OpenApiService::new(apis, "Messaging API", "0.1.0").server(format!("{}/api", server_url));
     let ui = api_service.swagger_ui();
-    let route = Route::new()
-        .nest("/api", api_service)
-        .nest("/", ui);
+    let route = Route::new().nest("/api", api_service).nest("/", ui);
     let app = route.with(CookieJarManager::new());
 
     Server::new(TcpListener::bind(format!("0.0.0.0:{}", config.port)))

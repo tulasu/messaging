@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use crate::domain::models::{
-    MessageAttempt, MessageContent, MessageHistoryEntry, MessageStatus, MessengerToken, MessengerType, RequestedBy,
-    User,
+    MessageAttempt, MessageContent, MessageHistoryEntry, MessageStatus, MessengerToken,
+    MessengerType, RequestedBy, User,
 };
 
 #[async_trait]

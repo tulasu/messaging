@@ -1,10 +1,12 @@
 use crate::{
     domain::models::{
-        MessageAttempt, MessageHistoryEntry, MessageStatus, MessengerChat, MessengerToken, MessengerTokenStatus,
+        MessageAttempt, MessageHistoryEntry, MessageStatus, MessengerChat, MessengerToken,
+        MessengerTokenStatus,
     },
     presentation::{
         http::responses::{
-            MessageAttemptDto, MessageHistoryDto, MessengerChatDto, MessengerTokenDto, MessengerTokenStatusDto,
+            MessageAttemptDto, MessageHistoryDto, MessengerChatDto, MessengerTokenDto,
+            MessengerTokenStatusDto,
         },
         models::{ChatTypeKind, MessageStatusDto, RequestedByKind},
     },
