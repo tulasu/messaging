@@ -16,6 +16,7 @@ use crate::{
         services::{event_bus::MessageBus, jwt::JwtServiceConfig, messenger::MessengerGateway},
         usecases::{
             authenticate_user::AuthenticateUserUseCase,
+            get_message::GetMessageUseCase,
             get_message_attempts::GetMessageAttemptsUseCase,
             list_chats::ListChatsUseCase,
             list_messages::ListMessagesUseCase,
@@ -120,6 +121,7 @@ async fn main() -> Result<(), Error> {
         history_repo.clone(),
         schedule_message_usecase.clone(),
     ));
+    let get_message_usecase = Arc::new(GetMessageUseCase::new(history_repo.clone()));
     let get_message_attempts_usecase =
         Arc::new(GetMessageAttemptsUseCase::new(history_repo.clone()));
 
@@ -139,6 +141,7 @@ async fn main() -> Result<(), Error> {
         list_messages_usecase,
         retry_message_usecase,
         get_message_attempts_usecase,
+        get_message_usecase,
         jwt_config,
     });
 
@@ -174,7 +177,7 @@ async fn main() -> Result<(), Error> {
         for origin in &config.cors_allowed_origins {
             cors = cors.allow_origin(origin.clone());
         }
-        
+
         cors
     };
 

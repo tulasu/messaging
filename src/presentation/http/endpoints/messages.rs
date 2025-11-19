@@ -12,8 +12,8 @@ use crate::{
         mappers::{map_attempt, map_history},
         requests::{BatchSendRequestDto, RetryMessageRequestDto, SendMessageRequestDto},
         responses::{
-            BatchSendItemResultDto, BatchSendResponseDto, MessageAttemptDto, PaginatedMessagesDto,
-            SendMessageResponseDto,
+            BatchSendItemResultDto, BatchSendResponseDto, MessageAttemptDto, MessageHistoryDto,
+            PaginatedMessagesDto, SendMessageResponseDto,
         },
         security::JwtAuth,
     },
@@ -118,6 +118,36 @@ impl MessagesEndpoints {
             })?;
 
         Ok(Json(attempts.iter().map(map_attempt).collect()))
+    }
+
+    #[oai(
+        path = "/messages/:message_id",
+        method = "get",
+        tag = EndpointsTags::Messages,
+    )]
+    pub async fn get_message(
+        &self,
+        cookie_jar: &CookieJar,
+        message_id: poem_openapi::param::Path<uuid::Uuid>,
+    ) -> PoemResult<Json<MessageHistoryDto>> {
+        let user = JwtAuth::from_cookies(cookie_jar, &self.state.jwt_config)?;
+
+        let message = self
+            .state
+            .get_message_usecase
+            .execute(message_id.0, user.user_id)
+            .await
+            .map_err(|e| {
+                if e.to_string().contains("forbidden") {
+                    poem::Error::from_string("forbidden", poem::http::StatusCode::FORBIDDEN)
+                } else if e.to_string().contains("not found") {
+                    poem::Error::from_string("message not found", poem::http::StatusCode::NOT_FOUND)
+                } else {
+                    internal_error(e)
+                }
+            })?;
+
+        Ok(Json(map_history(&message)))
     }
 
     #[oai(
