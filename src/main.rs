@@ -22,7 +22,7 @@ use crate::{
             list_messages::ListMessagesUseCase,
             list_tokens::ListTokensUseCase,
             register_token::RegisterTokenUseCase,
-            retry_message::RetryMessageUseCase,
+            retry_message::{RetryMessageConfig, RetryMessageUseCase},
             schedule_message::{ScheduleMessageConfig, ScheduleMessageUseCase},
         },
     },
@@ -117,9 +117,14 @@ async fn main() -> Result<(), Error> {
         schedule_config,
     ));
     let list_messages_usecase = Arc::new(ListMessagesUseCase::new(history_repo.clone()));
+    let retry_config = RetryMessageConfig {
+        max_attempts: config.system_retry_limit,
+    };
     let retry_message_usecase = Arc::new(RetryMessageUseCase::new(
         history_repo.clone(),
-        schedule_message_usecase.clone(),
+        token_repo.clone(),
+        bus.clone(),
+        retry_config,
     ));
     let get_message_usecase = Arc::new(GetMessageUseCase::new(history_repo.clone()));
     let get_message_attempts_usecase =

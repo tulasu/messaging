@@ -1,14 +1,26 @@
 use std::sync::Arc;
 
+use chrono::Utc;
 use uuid::Uuid;
 
-use crate::{domain::models::RequestedBy, domain::repositories::MessageHistoryRepository};
+use crate::{
+    application::services::event_bus::MessageBus,
+    domain::{
+        events::OutboundMessageEvent,
+        models::MessageStatus,
+        repositories::{MessageHistoryRepository, MessengerTokenRepository},
+    },
+};
 
-use super::schedule_message::{ScheduleMessageRequest, ScheduleMessageUseCase};
+pub struct RetryMessageConfig {
+    pub max_attempts: u32,
+}
 
 pub struct RetryMessageUseCase {
     history_repo: Arc<dyn MessageHistoryRepository>,
-    scheduler: Arc<ScheduleMessageUseCase>,
+    token_repo: Arc<dyn MessengerTokenRepository>,
+    bus: Arc<dyn MessageBus>,
+    config: RetryMessageConfig,
 }
 
 pub struct RetryMessageRequest {
@@ -19,11 +31,15 @@ pub struct RetryMessageRequest {
 impl RetryMessageUseCase {
     pub fn new(
         history_repo: Arc<dyn MessageHistoryRepository>,
-        scheduler: Arc<ScheduleMessageUseCase>,
+        token_repo: Arc<dyn MessengerTokenRepository>,
+        bus: Arc<dyn MessageBus>,
+        config: RetryMessageConfig,
     ) -> Self {
         Self {
             history_repo,
-            scheduler,
+            token_repo,
+            bus,
+            config,
         }
     }
 
@@ -38,15 +54,34 @@ impl RetryMessageUseCase {
             anyhow::bail!("message does not belong to user");
         }
 
-        self.scheduler
-            .execute(ScheduleMessageRequest {
-                user_id: message.user_id,
-                messenger: message.messenger,
-                recipient: message.recipient.clone(),
-                text: message.content.body.clone(),
-                requested_by: RequestedBy::User,
-            })
+        let token = self
+            .token_repo
+            .find_active(&message.user_id, message.messenger)
             .await?;
+        if token.is_none() {
+            anyhow::bail!("no active token for messenger");
+        }
+
+        let next_attempt = message.attempts + 1;
+
+        self.history_repo
+            .update_status(request.message_id, MessageStatus::Scheduled, next_attempt)
+            .await?;
+
+        let event = OutboundMessageEvent {
+            event_id: Uuid::new_v4(),
+            message_id: request.message_id,
+            user_id: message.user_id,
+            messenger: message.messenger,
+            recipient: message.recipient.clone(),
+            message_type: message.content.message_type.clone(),
+            content: message.content.clone(),
+            attempt: next_attempt,
+            max_attempts: self.config.max_attempts,
+            scheduled_at: Utc::now(),
+        };
+
+        self.bus.publish(event).await?;
 
         Ok(())
     }
